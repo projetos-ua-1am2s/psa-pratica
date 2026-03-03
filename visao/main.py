@@ -22,6 +22,12 @@ print(f"A usar o dispositivo: {device}")
 # 3. Abre a câmara do Mac
 cap = cv2.VideoCapture(0)
 
+# Verifica se a câmara foi aberta corretamente
+if not cap.isOpened():
+    print("Erro ao abrir a câmara. Verifica se a câmara está ligada e se a aplicação tem permissões para a utilizar.")
+    cap.release()
+    cv2.destroyAllWindows()
+    raise SystemExit(1)
 print("A iniciar vigilância... Prime 'q' para sair.")
 
 while cap.isOpened():
