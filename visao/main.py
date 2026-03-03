@@ -30,23 +30,24 @@ if not cap.isOpened():
     raise SystemExit(1)
 print("A iniciar vigilância... Prime 'q' para sair.")
 
-while cap.isOpened():
-    success, frame = cap.read()
-    if not success:
-        break
+try:
+    while cap.isOpened():
+        success, frame = cap.read()
+        if not success:
+            break
 
-    # 4. Faz a deteção e o rastreamento usando o hardware da Apple
-    # classes=[0] filtra apenas para detetar 'Pessoas'
-    results = model.track(frame, persist=True, device=device, classes=[0])
+        # 4. Faz a deteção e o rastreamento usando o hardware da Apple
+        # classes=[0] filtra apenas para detetar 'Pessoas'
+        results = model.track(frame, persist=True, device=device, classes=[0])
 
-    # 5. Desenha os quadrados e IDs no frame
-    annotated_frame = results[0].plot()
+        # 5. Desenha os quadrados e IDs no frame
+        annotated_frame = results[0].plot()
 
-    # 6. Janela de visualização
-    cv2.imshow("Vigilancia Mac IA", annotated_frame)
+        # 6. Janela de visualização
+        cv2.imshow("Vigilancia Mac IA", annotated_frame)
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+finally:
+    cap.release()
+    cv2.destroyAllWindows()
