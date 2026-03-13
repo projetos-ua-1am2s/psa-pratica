@@ -1,0 +1,11 @@
+# Ground Path
+# Caminho base (podes usar o caminho completo se preferires)
+path: ./my_dataset
+
+# Relative folder to the 'path' above
+train: images
+val: images
+
+# class definition
+names:
+  0: person
