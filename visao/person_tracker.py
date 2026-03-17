@@ -123,8 +123,26 @@ class PersonTracker:
         """Runs model validation metrics."""
         print("Running validation...")
         metrics = self.model.val(data=data_config, device=self.device)
-        print(f"mAP50: {metrics.results_dict['metrics/mAP50(B)']:.4f}")
-        print(f"Recall: {metrics.results_dict['metrics/recall(B)']:.4f}")
+
+        # Safely access metrics to avoid KeyError if Ultralytics changes keys or task type
+        results_dict = getattr(metrics, "results_dict", None)
+        if isinstance(results_dict, dict):
+            map50 = results_dict.get("metrics/mAP50(B)")
+            recall = results_dict.get("metrics/recall(B)")
+
+            if map50 is not None and recall is not None:
+                print(f"mAP50: {map50:.4f}")
+                print(f"Recall: {recall:.4f}")
+            else:
+                available_keys = ", ".join(results_dict.keys())
+                print(
+                    "Requested validation metrics 'metrics/mAP50(B)' and/or "
+                    "'metrics/recall(B)' are not available in results_dict. "
+                    f"Available keys: {available_keys}"
+                )
+        else:
+            print("Validation results do not contain a 'results_dict' dictionary; "
+                  "cannot report mAP50 and Recall metrics.")
 
     def cleanup(self):
         """Releases resources properly."""
