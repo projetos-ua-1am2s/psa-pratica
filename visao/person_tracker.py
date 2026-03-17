@@ -23,6 +23,11 @@ class PersonTracker:
         self.track_conf = self.accept_threshold / 2.0
         self.device = self._get_device()
 
+        # Interval (in seconds) between performance log prints.
+        # This prevents per-frame printing from becoming a bottleneck.
+        self.performance_log_interval = 1.0
+        self._last_perf_print_time = 0.0
+
         # Resolve model_path relative to this file if it is not absolute
         if not os.path.isabs(model_path):
             base_dir = os.path.dirname(__file__)
@@ -104,10 +109,15 @@ class PersonTracker:
             ])
 
     def _display_performance(self, start_time):
-        """Calculates and prints FPS and frame processing time."""
+        """Calculates and periodically prints FPS and frame processing time."""
         elapsed_time = time.time() - start_time
         fps = 1 / elapsed_time if elapsed_time > 0 else 0
-        print(f"FPS: {fps:.2f} | Time per frame: {elapsed_time:.3f}s")
+
+        # Throttle performance printing to avoid per-frame stdout overhead.
+        now = time.time()
+        if now - self._last_perf_print_time >= self.performance_log_interval:
+            print(f"FPS: {fps:.2f} | Time per frame: {elapsed_time:.3f}s")
+            self._last_perf_print_time = now
 
     def validate(self, data_config="data.yaml"):
         """Runs model validation metrics."""
