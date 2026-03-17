@@ -3,7 +3,7 @@ from ultralytics import YOLO
 import time
 import torch
 import csv # for performance reports
-
+from pathlib import Path
 
 # important variables
 conf_threshold = 0.3
@@ -89,7 +89,8 @@ with open("surveillance_data.csv", 'w', newline="") as csv_file:
         cv2.destroyAllWindows()
 
 # getting metrics for the model
-metrics = model.val(data="data.yaml")
+data_config_path = Path(__file__).with_name("data.yaml")
+metrics = model.val(data=str(data_config_path))
 # 3. Imprime os resultados principais
 print(f"Precisão (mAP50): {metrics.results_dict['metrics/mAP50(B)']:.4f}")
 print(f"Recall: {metrics.results_dict['metrics/recall(B)']:.4f}")
