@@ -108,7 +108,7 @@ class PersonTracker:
     def validate(self, data_config="data.yaml"):
         """Runs model validation metrics."""
         print("Running validation...")
-        metrics = self.model.val(data=data_config)
+        metrics = self.model.val(data=data_config, device=self.device)
         print(f"mAP50: {metrics.results_dict['metrics/mAP50(B)']:.4f}")
         print(f"Recall: {metrics.results_dict['metrics/recall(B)']:.4f}")
 
