@@ -1,5 +1,10 @@
 from pathlib import Path
-from person_tracker import PersonTracker
+try:
+    # Prefer relative import when `visao` is used as a package
+    from .person_tracker import PersonTracker
+except ImportError:
+    # Fallback for running this file directly as a script
+    from person_tracker import PersonTracker
 
 data_config_path = Path(__file__).resolve().parent / "data.yaml"
 
