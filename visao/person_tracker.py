@@ -17,6 +17,10 @@ class PersonTracker:
         # Threshold used to classify detections as Accepted/Rejected in logs.
         # Defaults to the model's confidence threshold if not explicitly set.
         self.accept_threshold = accept_threshold if accept_threshold is not None else conf_threshold
+        # Internal tracking confidence: lower than accept_threshold so that
+        # some detections can be logged as "Rejected" instead of being filtered
+        # out by the model itself.
+        self.track_conf = self.accept_threshold / 2.0
         self.device = self._get_device()
 
         # Resolve model_path relative to this file if it is not absolute
@@ -64,7 +68,7 @@ class PersonTracker:
                     results = self.model.track(
                         frame,
                         persist=True,
-                        conf=self.conf_threshold,
+                        conf=self.track_conf,
                         device=self.device,
                         classes=[0]
                     )
