@@ -121,6 +121,12 @@ class PersonTracker:
 
     def validate(self, data_config="data.yaml"):
         """Runs model validation metrics."""
+        # Resolve data_config relative to this file for non-absolute paths,
+        # to avoid dependence on the caller's current working directory.
+        if not os.path.isabs(data_config):
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            data_config = os.path.join(base_dir, data_config)
+
         print("Running validation...")
         metrics = self.model.val(data=data_config, device=self.device)
 
