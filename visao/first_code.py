@@ -75,8 +75,11 @@ with open("surveillance_data.csv", 'w', newline="") as csv_file:
             cv2.imshow("PSA surveillance camera", annotated_frame)
 
             # 7. Fps print in the terminal
-            fps = 1 / (final_time - initial_time)
             total_time = final_time - initial_time
+            if total_time > 0:
+                fps = 1 / total_time
+            else:
+                fps = 0.0
             print(f"FPS: {fps:.2f} and total elapsed time for frame: {total_time:.2f}")
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
