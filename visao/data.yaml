@@ -1,6 +1,9 @@
 # Ground Path
 # Caminho base (podes usar o caminho completo se preferires)
-path: ./my_dataset
+# Root folder of your dataset. Update this path or create the example structure:
+#   ./data_sample/
+#       images/
+path: ./data_sample
 
 # Relative folder to the 'path' above
 train: images
