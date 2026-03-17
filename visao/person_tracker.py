@@ -12,8 +12,11 @@ class PersonTracker:
     Thus creating a cleaner way to import code into other packages.
     """
 
-    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3):
+    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3, accept_threshold=None):
         self.conf_threshold = conf_threshold
+        # Threshold used to classify detections as Accepted/Rejected in logs.
+        # Defaults to the model's confidence threshold if not explicitly set.
+        self.accept_threshold = accept_threshold if accept_threshold is not None else conf_threshold
         self.device = self._get_device()
 
         # Resolve model_path relative to this file if it is not absolute
@@ -87,7 +90,7 @@ class PersonTracker:
         for box in boxes:
             conf = float(box.conf[0])
             track_id = int(box.id[0]) if box.id is not None else "N/A"
-            status = "Accepted" if conf >= self.conf_threshold else "Rejected"
+            status = "Accepted" if conf >= self.accept_threshold else "Rejected"
 
             csv_writer.writerow([
                 time.strftime("%H:%M:%S"),
