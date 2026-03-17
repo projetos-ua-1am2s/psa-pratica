@@ -46,13 +46,13 @@ class PersonTracker:
 
     def run(self, output_file="surveillance_data.csv"):
         """Main loop for real-time tracking and data logging."""
-        self._setup_camera()
+        try:
+            self._setup_camera()
 
-        with open(output_file, 'w', newline="") as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
+            with open(output_file, 'w', newline="") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
 
-            try:
                 while self.cap.isOpened():
                     start_time = time.time()
                     success, frame = self.cap.read()
@@ -82,8 +82,8 @@ class PersonTracker:
 
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
-            finally:
-                self.cleanup()
+        finally:
+            self.cleanup()
 
     def _log_detections(self, csv_writer, boxes):
         """Helper to write detection data to CSV."""
