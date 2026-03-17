@@ -2,6 +2,7 @@ import cv2
 import torch
 import time
 import csv
+import os
 from ultralytics import YOLO
 
 
@@ -14,6 +15,12 @@ class PersonTracker:
     def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3):
         self.conf_threshold = conf_threshold
         self.device = self._get_device()
+
+        # Resolve model_path relative to this file if it is not absolute
+        if not os.path.isabs(model_path):
+            base_dir = os.path.dirname(__file__)
+            model_path = os.path.join(base_dir, model_path)
+
         self.model = YOLO(model_path)
         self.cap = None
 
