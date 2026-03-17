@@ -47,7 +47,7 @@ with open("surveillance_data.csv", 'w', newline="") as csv_file:
 
             # 4. Detection and tracking
             # classes=[0] filters tracking to 'People'
-            results = model.track(frame, persist=True, conf=0.3, device=device, classes=[0]) # conf defines the threshold, thus anything with less that x% of conf won't be considered as a positive.
+            results = model.track(frame, persist=True, conf=conf_threshold, device=device, classes=[0]) # conf defines the threshold, thus anything with less that x% of conf won't be considered as a positive.
             # low conf threshold to minimize false negatives seeing as they would be more problematic in a security system
 
 
