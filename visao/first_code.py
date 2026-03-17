@@ -9,7 +9,7 @@ from pathlib import Path
 conf_threshold = 0.3
 
 # 1. Loads the model (o 'n' é de nano, o mais leve para Mac)
-model = YOLO("yolov8n.pt") 
+model = YOLO(str(Path(__file__).with_name("yolov8n.pt")))
 
 # 2. Define o dispositivo para o chip da Apple (M1/M2/M3)
 # Se o teu Mac for muito antigo (Intel),
