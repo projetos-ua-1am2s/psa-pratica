@@ -204,13 +204,6 @@ class PersonTracker:
         return [round(float(magnitude), 3), round(float(angle), 2)]
 
 
-    def _log_detections(self, csv_writer, boxes):
-        for box in boxes:
-            conf = float(box.conf[0])
-            track_id = int(box.id[0]) if box.id is not None else "N/A"
-            status = "Accepted" if conf >= self.accept_threshold else "Rejected"
-            csv_writer.writerow([time.strftime("%H:%M:%S"), track_id, f"{conf:.2f}", status])
-
     def _display_performance(self, start_time):
         elapsed_time = time.time() - start_time
         now = time.time()
