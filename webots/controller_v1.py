@@ -1,6 +1,8 @@
 import os
 import sys
 
+# Faz o mesmo que o my_controller no webots, mas com a versão inicial da deteção de pessoas
+
 # 1. Configurar o caminho do Webots (ATENÇÃO: confirma se o caminho no teu PC é este!)
 # Se o Webots estiver instalado noutro sítio, altera a variável webots_path.
 webots_path = 'C:/Program Files/Webots'
