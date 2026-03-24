@@ -73,9 +73,6 @@ class PersonTracker:
                     if not success:
                         break
 
-
-                    h, w, _ = frame.shape
-
                     # Tracking only class 0 (People)
                     results = self.model.track(
                         frame,
@@ -180,8 +177,7 @@ class PersonTracker:
 
     def _get_movement_vector(self, frame, boxes):
         """
-        Calculates the [magnitude, angle] vector for the most central target.
-        Normalized magnitude (0 to 1) and angle in degrees.
+        Calculates the [magnitude, angle] vector for the person with the first ID
         """
         if boxes is None or len(boxes) == 0:
             return None
@@ -190,20 +186,14 @@ class PersonTracker:
         h, w, _ = frame.shape
         c_x, c_y = w / 2, h / 2
 
-        # 2. Choose the target (e.g., the first ID or the most central one)
-        # In this example, we'll use the first one detected by the Tracker
-        box = boxes[0]
 
-        # Coordinates inside of the bounding box (x, y, w, h)
-        # .xywh returns the center (x, y) e width/height
-        obj_x, obj_y, obj_w, obj_h = box.xywh[0]
+        # Target the first person in the list (tracked ID)
+        obj_x, obj_y, _, _ = boxes[0].xywh[0]
 
-        # 3. Calculating vector error
         dx = obj_x - c_x
-        dy = obj_y - c_y  # in images, Y grows downwards
+        dy = obj_y - c_y
 
-        # 4. Magnitude (euclidian distance)
-        # Normalization thru frame's diagonal so value is independent of the resolution
+        # Normalized Magnitude (0.0 to 1.0)
         max_dist = math.sqrt(c_x ** 2 + c_y ** 2)
         magnitude = math.sqrt(dx ** 2 + dy ** 2) / max_dist
 
@@ -213,8 +203,24 @@ class PersonTracker:
 
         return [round(float(magnitude), 3), round(float(angle), 2)]
 
-# --- How to use it ---
-if __name__ == "__main__":
-    tracker = PersonTracker()
-    tracker.run()
-    # tracker.validate() # Uncomment if you want to validate after running
+
+    def _log_detections(self, csv_writer, boxes):
+        for box in boxes:
+            conf = float(box.conf[0])
+            track_id = int(box.id[0]) if box.id is not None else "N/A"
+            status = "Accepted" if conf >= self.accept_threshold else "Rejected"
+            csv_writer.writerow([time.strftime("%H:%M:%S"), track_id, f"{conf:.2f}", status])
+
+    def _display_performance(self, start_time):
+        elapsed_time = time.time() - start_time
+        now = time.time()
+        if now - self._last_perf_print_time >= self.performance_log_interval:
+            fps = 1 / elapsed_time if elapsed_time > 0 else 0
+            # Print to console silently or use logging
+            print(f"--- Performance: {fps:.2f} FPS | Frame Process Time: {elapsed_time:.3f}s ---")
+            self._last_perf_print_time = now
+
+    def cleanup(self):
+        if self.cap:
+            self.cap.release()
+        cv2.destroyAllWindows()
