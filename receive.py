@@ -1,22 +1,41 @@
+import numpy as np
+import cv2
 import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
 
-# Esta função é chamada sempre que uma nova mensagem chega
-def ao_receber_mensagem(client, userdata, message):
-    print(f"Recebi do Webots: {message.payload.decode()} no tópico {message.topic}")
+# 1. Função que é chamada sempre que chega uma imagem
+def on_message(client, userdata, msg, *args, **kwargs):
+    try:
+        # Transformar os bytes recebidos num array de números (NumPy)
+        nparr = np.frombuffer(msg.payload, np.uint8)
+        
+        # DESCOMPRIMIR o JPEG (O OpenCV deteta automaticamente que é 720p)
+        img_recebida = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img_recebida is not None:
+            # Mostrar a imagem numa janela
+            cv2.imshow("Stream do Webots (720p)", img_recebida)
+            
+            # ESPERAR 1ms para a janela processar a imagem (Obrigatório no OpenCV)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                exit()
+        else:
+            print("Erro: Não foi possível decodificar a imagem.")
+            
+    except Exception as e:
+        print(f"Erro no processamento: {e}")
 
-# 1. Criamos o cliente
-cliente = mqtt.Client()
+# 2. Configuração do Cliente MQTT (Versão 2)
+client = mqtt.Client(CallbackAPIVersion.VERSION2)
+client.on_message = on_message
 
-# 2. Dizemos ao cliente qual função usar quando chegar mensagem
-cliente.on_message = ao_receber_mensagem
+# 3. Conectar ao Broker
+client.connect("localhost", 1883)
 
-# 3. Conectamos ao Broker (localhost porque está no seu PC)
-cliente.connect("localhost", 1883)
+# 4. Subscrever ao tópico
+client.subscribe("webots/camera")
 
-# 4. Escolhemos o que queremos ouvir
-cliente.subscribe("webots/sensor")
+print("Aguardando imagens do Webots... (Pressione 'q' na janela da imagem para sair)")
 
-print("Aguardando mensagens... (Pressione Ctrl+C para sair)")
-
-# 5. Mantemos o script rodando para sempre
-cliente.loop_forever()
+# 5. Manter o script a correr
+client.loop_forever()
