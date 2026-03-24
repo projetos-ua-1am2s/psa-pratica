@@ -3,6 +3,7 @@ import torch
 import time
 import csv
 import os
+import math
 from ultralytics import YOLO
 
 
@@ -54,7 +55,10 @@ class PersonTracker:
         print("Surveillance started... Press 'q' to quit.")
 
     def run(self, output_file="surveillance_data.csv"):
-        """Main loop for real-time tracking and data logging."""
+        """
+        Generator that processes frames and yields (vector, frame).
+        Vector format: [magnitude (0-1), angle (degrees)]
+        """
         try:
             self._setup_camera()
 
@@ -69,6 +73,9 @@ class PersonTracker:
                     if not success:
                         break
 
+
+                    h, w, _ = frame.shape
+
                     # Tracking only class 0 (People)
                     results = self.model.track(
                         frame,
@@ -78,19 +85,33 @@ class PersonTracker:
                         classes=[0]
                     )
 
-                    # Log data if detections exist
-                    if results[0].boxes is not None:
+
+                    vector = None
+                    annotated_frame = results[0].plot()
+
+
+                    # new -- calculating movment vector
+                    if results[0].boxes is not None and len(results[0].boxes) > 0:
+                        # Log to CSV
                         self._log_detections(writer, results[0].boxes)
 
-                    # Visuals
-                    annotated_frame = results[0].plot()
-                    cv2.imshow("PSA Surveillance Camera", annotated_frame)
+                        # calculating movement vector
+                        vector = self._get_movement_vector(frame, results[0].boxes)
 
-                    # Performance metrics
+                        # Draw visual debug info on the annotated frame
+                        if vector:
+                            h, w, _ = frame.shape
+                            obj_x, obj_y = results[0].boxes[0].xywh[0][:2]
+                            cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
+                                     2)
+                            cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
+                                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
                     self._display_performance(start_time)
 
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        break
+                    # Yield the data to the external loop
+                    yield vector, annotated_frame
+
         finally:
             self.cleanup()
 
@@ -157,6 +178,40 @@ class PersonTracker:
         cv2.destroyAllWindows()
         print("Resources released.")
 
+    def _get_movement_vector(self, frame, boxes):
+        """
+        Calculates the [magnitude, angle] vector for the most central target.
+        Normalized magnitude (0 to 1) and angle in degrees.
+        """
+        if boxes is None or len(boxes) == 0:
+            return None
+
+        # 1. Center of Frame
+        h, w, _ = frame.shape
+        c_x, c_y = w / 2, h / 2
+
+        # 2. Choose the target (e.g., the first ID or the most central one)
+        # In this example, we'll use the first one detected by the Tracker
+        box = boxes[0]
+
+        # Coordinates inside of the bounding box (x, y, w, h)
+        # .xywh returns the center (x, y) e width/height
+        obj_x, obj_y, obj_w, obj_h = box.xywh[0]
+
+        # 3. Calculating vector error
+        dx = obj_x - c_x
+        dy = obj_y - c_y  # in images, Y grows downwards
+
+        # 4. Magnitude (euclidian distance)
+        # Normalization thru frame's diagonal so value is independent of the resolution
+        max_dist = math.sqrt(c_x ** 2 + c_y ** 2)
+        magnitude = math.sqrt(dx ** 2 + dy ** 2) / max_dist
+
+        # 5. Angle in degrees (-180 a 180)
+        # 0º is right, 90º is down, -90º is up
+        angle = math.degrees(math.atan2(dy, dx))
+
+        return [round(float(magnitude), 3), round(float(angle), 2)]
 
 # --- How to use it ---
 if __name__ == "__main__":

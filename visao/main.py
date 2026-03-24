@@ -9,5 +9,5 @@ except ImportError:
 data_config_path = Path(__file__).resolve().parent / "data.yaml"
 
 surveillance_system = PersonTracker()
-surveillance_system.validate(data_config=str(data_config_path))
-# surveillance_system.run()
+# surveillance_system.validate(data_config=str(data_config_path))
+surveillance_system.run()
