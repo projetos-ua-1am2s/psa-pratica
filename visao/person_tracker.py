@@ -87,7 +87,7 @@ class PersonTracker:
                     annotated_frame = results[0].plot()
 
 
-                    # new -- calculating movment vector
+                    # new -- calculating movement vector
                     if results[0].boxes is not None and len(results[0].boxes) > 0:
                         # Log to CSV
                         self._log_detections(writer, results[0].boxes)
