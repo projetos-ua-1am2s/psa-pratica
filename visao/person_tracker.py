@@ -212,8 +212,3 @@ class PersonTracker:
             # Print to console silently or use logging
             print(f"--- Performance: {fps:.2f} FPS | Frame Process Time: {elapsed_time:.3f}s ---")
             self._last_perf_print_time = now
-
-    def cleanup(self):
-        if self.cap:
-            self.cap.release()
-        cv2.destroyAllWindows()
