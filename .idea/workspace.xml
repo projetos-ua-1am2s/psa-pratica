@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2f0da97f-6d12-45b2-aa89-024b6a0c3b73" name="Changes" comment="updating the code to have more modurality and to yeild the movement vector needed for the camera system down the line">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/JetBrains.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/JetBrains.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/visao/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/visao/README.md" afterDir="false" />
-    </list>
+    <list default="true" id="2f0da97f-6d12-45b2-aa89-024b6a0c3b73" name="Changes" comment="updating the code to have more modurality and to yeild the movement vector needed for the camera system down the line" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -253,7 +249,7 @@
       <workItem from="1773757400909" duration="1259000" />
       <workItem from="1774288398625" duration="950000" />
       <workItem from="1774360428920" duration="7178000" />
-      <workItem from="1774435440048" duration="1293000" />
+      <workItem from="1774435440048" duration="1599000" />
     </task>
     <task id="LOCAL-00001" summary="updating the code to have more modurality and to yeild the movement vector needed for the camera system down the line">
       <option name="closed" value="true" />
