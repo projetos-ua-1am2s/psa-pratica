@@ -40,6 +40,151 @@ python main.py
 
 Prima **`q`** na janela de visualização (com a janela em foco) para terminar o programa.
 
+---
+
+## How to Use the Code
+
+This section explains how to use the `PersonTracker` class directly in your own Python scripts, and covers every configuration option and output format.
+
+### Running the ready-made script
+
+The simplest way to start the system is to run `main.py`:
+
+```bash
+cd visao
+python main.py
+```
+
+What happens when you run it:
+
+1. A `PersonTracker` is created with a confidence threshold of `0.5`.
+2. The webcam (index `0`) is opened.
+3. Each frame is processed by YOLOv8; detected persons are annotated and displayed in a window called **"Tracking View"**.
+4. Detection data is written line-by-line to `surveillance_data.csv` in the current directory.
+5. A movement vector (distance + angle from the frame centre to the first tracked person) is printed whenever its magnitude exceeds `0.05`.
+6. The system shuts down cleanly on **`q`** or **`Ctrl+C`**.
+
+---
+
+### Using `PersonTracker` in your own script
+
+Import and instantiate the class, then consume its generator:
+
+```python
+import csv
+import cv2
+from visao.person_tracker import PersonTracker   # adjust import path as needed
+
+# Create a tracker (see "Configuration" below for parameter details)
+tracker = PersonTracker(conf_threshold=0.5)
+
+with open("my_log.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
+
+    for vector, frame, boxes in tracker.run():
+
+        # --- Act on the movement vector ---
+        if vector is not None:
+            magnitude, angle = vector
+            if magnitude > 0.1:
+                print(f"Person is {magnitude:.2f} away at {angle:.1f}°")
+
+        # --- Log detections to CSV ---
+        if boxes is not None:
+            tracker.log_detections(writer, boxes)
+
+        # --- Display the annotated frame ---
+        cv2.imshow("My View", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+```
+
+---
+
+### Configuration
+
+`PersonTracker.__init__` accepts the following keyword arguments:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model_path` | `str` | `"yolov8n.pt"` | Path to the YOLO model weights file. A relative path is resolved relative to `person_tracker.py`. |
+| `conf_threshold` | `float` | `0.3` | Minimum confidence for a detection to be yielded by the generator. Also used as `accept_threshold` when the latter is not set. |
+| `accept_threshold` | `float \| None` | `None` | Confidence above which a detection is labeled **"Accepted"** in the CSV log. Defaults to `conf_threshold`. |
+
+**Example — stricter acceptance, looser detection:**
+
+```python
+# Detections with confidence >= 0.25 appear in the stream,
+# but only those >= 0.6 are labeled "Accepted" in the CSV.
+tracker = PersonTracker(conf_threshold=0.25, accept_threshold=0.6)
+```
+
+> **Internal note:** The tracker asks YOLO to use a confidence of `accept_threshold / 2` so that borderline detections are visible in the log as "Rejected" rather than being silently discarded.
+
+---
+
+### Understanding the outputs
+
+#### 1. Movement vector — `vector`
+
+The generator yields a `vector` value for each frame. It is either `None` (no person detected) or a two-element list `[magnitude, angle]`:
+
+| Field | Type | Range | Meaning |
+|-------|------|-------|---------|
+| `magnitude` | `float` | `0.0 – 1.0` | Normalised distance of the first tracked person from the frame centre. `0.0` = at the centre; `1.0` = at a corner. |
+| `angle` | `float` | `-180 – 180°` | Direction from the frame centre to the person. `0°` = right; `90°` = down; `-90°` = up; `±180°` = left. |
+
+#### 2. Annotated frame — `frame`
+
+A NumPy array (BGR) with YOLO bounding boxes, tracking IDs, and — when a person is detected — a green line from the frame centre to the first tracked person and a text overlay showing the vector values.
+
+#### 3. Detection boxes — `boxes`
+
+An [Ultralytics `Boxes`](https://docs.ultralytics.com/reference/engine/results/#ultralytics.engine.results.Boxes) object (or `None` when no person is detected). Each element exposes:
+- `.conf` — confidence score tensor
+- `.id` — tracking ID tensor (or `None` if tracking failed)
+- `.xywh` — bounding-box tensor in `[x_centre, y_centre, width, height]` format
+
+#### 4. CSV log — `surveillance_data.csv`
+
+Each row written by `log_detections` has four columns:
+
+| Column | Example | Description |
+|--------|---------|-------------|
+| `Timestamp` | `14:32:07` | Wall-clock time of detection (`HH:MM:SS`) |
+| `ID` | `3` | YOLO tracking ID (`"N/A"` if unavailable) |
+| `Confidence` | `0.87` | Raw model confidence (two decimal places) |
+| `Status` | `Accepted` | `"Accepted"` if confidence ≥ `accept_threshold`, otherwise `"Rejected"` |
+
+---
+
+### Running model validation
+
+You can validate the model against a labeled dataset defined in `data.yaml`:
+
+```python
+tracker = PersonTracker()
+tracker.validate()          # uses visao/data.yaml by default
+# or provide a custom path:
+tracker.validate(data_config="/path/to/my_dataset.yaml")
+```
+
+This prints **mAP50** and **Recall** metrics to the console.
+
+---
+
+### Method reference
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `run` | `() → Generator` | Yields `(vector, frame, boxes)` for every camera frame until the camera closes or `cleanup()` is called. |
+| `log_detections` | `(csv_writer, boxes) → None` | Writes one CSV row per detected person to the given `csv.writer`. |
+| `validate` | `(data_config="data.yaml") → None` | Runs YOLO validation and prints mAP50 / Recall. |
+| `cleanup` | `() → None` | Releases the camera and destroys all OpenCV windows. Called automatically when the generator exits. |
+
+---
+
 # Road Map for Human recognition
 
 This roadmap is designed to take you from a basic detection script to a professional-grade 3D vigilance system. We will leverage your existing "Memory Class" logic to track people across time and space.
