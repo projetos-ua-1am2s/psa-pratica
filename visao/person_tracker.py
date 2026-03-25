@@ -196,7 +196,7 @@ class PersonTracker:
 
 
         # Target the first person in the list (tracked ID)
-        obj_x, obj_y, _, _ = boxes[0].xywh[0]
+        obj_x, obj_y, _, _ = tuple(float(v) for v in boxes[0].xywh[0])
 
         dx = obj_x - c_x
         dy = obj_y - c_y
