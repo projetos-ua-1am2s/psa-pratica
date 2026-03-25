@@ -1,7 +1,6 @@
 import cv2
 import torch
 import time
-import csv
 import os
 import math
 from ultralytics import YOLO
@@ -54,65 +53,74 @@ class PersonTracker:
             raise RuntimeError("Error: Could not open camera.")
         print("Surveillance started... Press 'q' to quit.")
 
-    def run(self, output_file="surveillance_data.csv"):
+    def run(self):
         """
-        Generator that processes frames and yields (vector, frame).
+        Generator that processes frames and yields (vector, frame, boxes).
+
         Vector format: [magnitude (0-1), angle (degrees)]
+        boxes: Ultralytics Boxes object for the current frame, or None when no
+               detections are present. Callers that want to log detections to a
+               CSV file should open the file themselves and pass the resulting
+               ``csv.writer`` to :meth:`log_detections`.
+
+        Example::
+
+            with open("out.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
+                for vector, frame, boxes in tracker.run():
+                    if boxes is not None:
+                        tracker.log_detections(writer, boxes)
+                    # … display / act on frame …
         """
         try:
             self._setup_camera()
 
-            with open(output_file, 'w', newline="") as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
+            while self.cap.isOpened():
+                start_time = time.time()
+                success, frame = self.cap.read()
 
-                while self.cap.isOpened():
-                    start_time = time.time()
-                    success, frame = self.cap.read()
+                if not success:
+                    break
 
-                    if not success:
-                        break
+                # Tracking only class 0 (People)
+                results = self.model.track(
+                    frame,
+                    persist=True,
+                    conf=self.track_conf,
+                    device=self.device,
+                    classes=[0]
+                )
 
-                    # Tracking only class 0 (People)
-                    results = self.model.track(
-                        frame,
-                        persist=True,
-                        conf=self.track_conf,
-                        device=self.device,
-                        classes=[0]
-                    )
+                vector = None
+                boxes = None
+                annotated_frame = results[0].plot()
 
+                # new -- calculating movement vector
+                if results[0].boxes is not None and len(results[0].boxes) > 0:
+                    boxes = results[0].boxes
 
-                    vector = None
-                    annotated_frame = results[0].plot()
+                    # calculating movement vector
+                    vector = self._get_movement_vector(frame, boxes)
 
+                    # Draw visual debug info on the annotated frame
+                    if vector:
+                        h, w, _ = frame.shape
+                        obj_x, obj_y = boxes[0].xywh[0][:2]
+                        cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
+                                 2)
+                        cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
+                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-                    # new -- calculating movement vector
-                    if results[0].boxes is not None and len(results[0].boxes) > 0:
-                        # Log to CSV
-                        self._log_detections(writer, results[0].boxes)
+                self._display_performance(start_time)
 
-                        # calculating movement vector
-                        vector = self._get_movement_vector(frame, results[0].boxes)
-
-                        # Draw visual debug info on the annotated frame
-                        if vector:
-                            h, w, _ = frame.shape
-                            obj_x, obj_y = results[0].boxes[0].xywh[0][:2]
-                            cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
-                                     2)
-                            cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-                    self._display_performance(start_time)
-
-                    # Yield the data to the external loop
-                    yield vector, annotated_frame
+                # Yield the data to the external loop
+                yield vector, annotated_frame, boxes
 
         finally:
             self.cleanup()
 
-    def _log_detections(self, csv_writer, boxes):
+    def log_detections(self, csv_writer, boxes):
         """Helper to write detection data to CSV."""
         for box in boxes:
             conf = float(box.conf[0])
@@ -202,13 +210,3 @@ class PersonTracker:
         angle = math.degrees(math.atan2(dy, dx))
 
         return [round(float(magnitude), 3), round(float(angle), 2)]
-
-
-    def _display_performance(self, start_time):
-        elapsed_time = time.time() - start_time
-        now = time.time()
-        if now - self._last_perf_print_time >= self.performance_log_interval:
-            fps = 1 / elapsed_time if elapsed_time > 0 else 0
-            # Print to console silently or use logging
-            print(f"--- Performance: {fps:.2f} FPS | Frame Process Time: {elapsed_time:.3f}s ---")
-            self._last_perf_print_time = now
