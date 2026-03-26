@@ -4,6 +4,7 @@ import time
 import os
 import math
 from ultralytics import YOLO
+from deepface import DeepFace
 
 
 class PersonTracker:
@@ -12,7 +13,7 @@ class PersonTracker:
     Thus creating a cleaner way to import code into other packages.
     """
 
-    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3, accept_threshold=None):
+    def __init__(self, model_path="yolov8n.pt", db_path="./db", conf_threshold=0.3, accept_threshold=None):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
         # Defaults to the model's confidence threshold if not explicitly set.
@@ -37,6 +38,12 @@ class PersonTracker:
         self.cap = None
 
         print(f"Using device: {self.device}")
+
+        # importing database for faces
+        self.db_path = db_path
+        # Ensure the DB folder exists to avoid DeepFace errors
+        if not os.path.exists(self.db_path):
+            os.makedirs(self.db_path)
 
     def _get_device(self):
         """Internal method to detect the best available hardware."""
@@ -116,22 +123,21 @@ class PersonTracker:
                         cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
                                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-                    for box in results[0].boxes:
-                        # 2. Get and clamp coordinates
-                        coords = box.xyxy[0].tolist()
-                        x1, y1, x2, y2 = map(int, coords)
 
-                        x1, y1 = max(0, x1), max(0, y1)
-                        x2, y2 = min(width, x2), min(height, y2)
+                        # Logic for each detected person
+                        for box in boxes:
+                            # Method 1: Get the crop
+                            person_crop = self._get_person_crop(frame, box)
 
-                        # 3. Create the crop
-                        person_crop = frame[y1:y2, x1:x2]
+                            if person_crop.size > 0:
+                                # Method 2: Identify the person
+                                name = self._identify_person(person_crop)
 
-                        # 4. Show the crop in its own window
-                        # Note: If there are multiple people, this window will
-                        # refresh for each person in the loop.
-                        if person_crop.size > 0:
-                            cv2.imshow("Detected Person Crop", person_crop)
+                                # Visual Feedback: Label the frame
+                                x1, y1, _, _ = map(int, box.xyxy[0])
+                                cv2.putText(annotated_frame, f"ID: {name}", (x1, y1 - 10),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
 
 
                 self._display_performance(start_time)
@@ -232,3 +238,46 @@ class PersonTracker:
         angle = math.degrees(math.atan2(dy, dx))
 
         return [round(float(magnitude), 3), round(float(angle), 2)]
+
+    def _get_person_crop(self, frame, box):
+        """
+        Extracts and returns a clamped image crop of a detected person.
+        """
+        height, width, _ = frame.shape
+
+        # 1. Get and clamp coordinates to stay within frame boundaries
+        coords = box.xyxy[0].tolist()
+        x1, y1, x2, y2 = map(int, coords)
+
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(width, x2), min(height, y2)
+
+        # 2. Create and return the crop
+        return frame[y1:y2, x1:x2]
+
+    def _identify_person(self, person_crop):
+        """
+        Uses DeepFace to match a person crop against the database.
+        Returns the name of the folder or 'Unknown'.
+        """
+        try:
+            # We use enforce_detection=False because YOLO already found the person
+            results = DeepFace.find(
+                img_path=person_crop,
+                db_path=self.db_path,
+                model_name="SFace",
+                enforce_detection=False,
+                silent=True  # Keeps the console clean
+            )
+
+            if len(results) > 0 and not results[0].empty:
+                # Get the path of the best match
+                full_path = results[0]['identity'][0]
+                # Extract the folder name (the person's name)
+                name = os.path.basename(os.path.dirname(full_path))
+                return name
+
+        except Exception as e:
+            print(f"Recognition logic error: {e}")
+
+        return "Unknown"
