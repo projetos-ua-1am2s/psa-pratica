@@ -54,44 +54,6 @@ class PersonTracker:
         print("Surveillance started... Press 'q' to quit.")
 
 
-
-
-    def _process_face_recognition(self, frame, annotated_frame, person_box):
-        """
-        Handles cropping, face detection (optional), and drawing the face box.
-        """
-        px1, py1, px2, py2 = person_box
-
-        # 1. Create the person crop
-        person_crop = frame[py1:py2, px1:px2]
-
-        if person_crop.size == 0:
-            return
-
-        # 2. Strategy: Identify Face Area
-        # For now, let's use the 'top-30%' rule to simulate where the face is.
-        # Later, you can replace this with: face_coords = face_model.predict(person_crop)
-        face_h = int((py2 - py1) * 0.30)
-
-        # 3. Global Coordinates for the Blue Box
-        # We add px1 and py1 to map the crop-relative position back to the full frame
-        fx1, fy1 = px1 + 5, py1 + 5
-        fx2, fy2 = px2 - 5, py1 + face_h
-
-        # 4. Draw directly on the annotated_frame
-        cv2.rectangle(
-            annotated_frame,
-            (fx1, fy1),
-            (fx2, fy2),
-            (255, 0, 0),  # Blue BGR
-            2
-        )
-
-        # 5. Potential Identity Text (Phase 2)
-        # cv2.putText(annotated_frame, "Identifying...", (fx1, fy1-10), ...)
-
-
-
     def run(self):
         """
         Generator that processes frames and yields (vector, frame, boxes).
@@ -121,6 +83,9 @@ class PersonTracker:
 
                 if not success:
                     break
+
+                # 1. Get dimensions for safe clamping
+                height, width, _ = frame.shape
 
                 # Tracking only class 0 (People)
                 results = self.model.track(
@@ -152,13 +117,21 @@ class PersonTracker:
                                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                     for box in results[0].boxes:
-                        # 2. DEFINE p_box HERE
-                        # We take the coordinates, convert to list, and ensure they are integers >= 0
+                        # 2. Get and clamp coordinates
                         coords = box.xyxy[0].tolist()
-                        p_box = [max(0, int(c)) for c in coords]  # This creates the [x1, y1, x2, y2] list
+                        x1, y1, x2, y2 = map(int, coords)
 
-                        # 3. Now you can safely call the method
-                        self._process_face_recognition(frame, annotated_frame, p_box)
+                        x1, y1 = max(0, x1), max(0, y1)
+                        x2, y2 = min(width, x2), min(height, y2)
+
+                        # 3. Create the crop
+                        person_crop = frame[y1:y2, x1:x2]
+
+                        # 4. Show the crop in its own window
+                        # Note: If there are multiple people, this window will
+                        # refresh for each person in the loop.
+                        if person_crop.size > 0:
+                            cv2.imshow("Detected Person Crop", person_crop)
 
 
                 self._display_performance(start_time)
