@@ -4,6 +4,11 @@ import time
 import os
 import math
 from ultralytics import YOLO
+import numpy as np
+import json
+import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
+from queue import Queue
 
 
 class PersonTracker:
@@ -12,7 +17,7 @@ class PersonTracker:
     Thus creating a cleaner way to import code into other packages.
     """
 
-    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3, accept_threshold=None):
+    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3, accept_threshold=None, mqtt_broker="localhost"):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
         # Defaults to the model's confidence threshold if not explicitly set.
@@ -34,10 +39,18 @@ class PersonTracker:
             model_path = os.path.join(base_dir, model_path)
 
         self.model = YOLO(model_path)
-        self.cap = None
+        # self.cap = None
+
+        # ----- MQTT Configuration -----
+        self.client = mqtt.Client(CallbackAPIVersion.VERSION2, "VisionBrain")
+        self.client.on_connect = self._on_connect
+        self.client.on_message = self._on_message
+        self.mqtt_broker = mqtt_broker
+        self.frame_queue = Queue(maxsize=1) # Stores the most recent frame
+        # ------------------------------
 
         print(f"Using device: {self.device}")
-
+    
     def _get_device(self):
         """Internal method to detect the best available hardware."""
         if torch.backends.mps.is_available():
@@ -45,13 +58,35 @@ class PersonTracker:
         elif torch.cuda.is_available():
             return "cuda"
         return "cpu"
+    
+    # ----- MQTT Communication - Frame Reception -----
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
+            print(f"Connected to MQTT Broker! (Reason Code: {reason_code})")
+            client.subscribe("Camera")
+        else:
+            print(f"Failed to connect, return code {reason_code}")
 
-    def _setup_camera(self):
-        """Initializes the camera and checks if it's working."""
-        self.cap = cv2.VideoCapture(0)
-        if not self.cap.isOpened():
-            raise RuntimeError("Error: Could not open camera.")
-        print("Surveillance started... Press 'q' to quit.")
+    def _on_message(self, client, userdata, msg):
+        """This function is called whenever a frame is received via MQTT"""
+        # Convert received byte payload into a NumPy array
+        nparr = np.frombuffer(msg.payload, np.uint8)
+        # Decode the NumPy array into an OpenCV image
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is not None:
+            # Keep only the latest frame to avoid processing delays
+            if self.frame_queue.full():
+                self.frame_queue.get()
+            self.frame_queue.put(frame)
+    # ------------------------------
+
+    # def _setup_camera(self):
+    #     """Initializes the camera and checks if it's working."""
+    #     self.cap = cv2.VideoCapture(0)
+    #     if not self.cap.isOpened():
+    #         raise RuntimeError("Error: Could not open camera.")
+    #     print("Surveillance started... Press 'q' to quit.")
 
     def run(self):
         """
@@ -73,15 +108,20 @@ class PersonTracker:
                         tracker.log_detections(writer, boxes)
                     # … display / act on frame …
         """
+        # Establish connection to the MQTT broker (port 1883, keepalive 60s)
+        self.client.connect(self.mqtt_broker, 1883, 60)
+        self.client.loop_start() 
+        print("Processing started... Waiting for MQTT frames.")
+
         try:
-            self._setup_camera()
+            # self._setup_camera()
 
-            while self.cap.isOpened():
+            while True:
+
+                frame = self.frame_queue.get()
                 start_time = time.time()
-                success, frame = self.cap.read()
 
-                if not success:
-                    break
+                if frame is None: continue
 
                 # Tracking only class 0 (People)
                 results = self.model.track(
@@ -105,6 +145,11 @@ class PersonTracker:
 
                     # Draw visual debug info on the annotated frame
                     if vector:
+                        # ----- Vector Transmission via MQTT -----
+                        payload = json.dumps({"magnitude": vector[0], "angle": vector[1]})
+                        self.client.publish("Movement", payload)
+                        # ----------------------------------------
+
                         h, w, _ = frame.shape
                         obj_x, obj_y = boxes[0].xywh[0][:2]
                         cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
@@ -178,8 +223,10 @@ class PersonTracker:
 
     def cleanup(self):
         """Releases resources properly."""
-        if self.cap:
-            self.cap.release()
+        # if self.cap:
+        #     self.cap.release()
+        self.client.loop_stop()
+        self.client.disconnect()
         cv2.destroyAllWindows()
         print("Resources released.")
 
@@ -196,7 +243,10 @@ class PersonTracker:
 
 
         # Target the first person in the list (tracked ID)
-        obj_x, obj_y, _, _ = tuple(float(v) for v in boxes[0].xywh[0])
+        #obj_x, obj_y, _, _ = tuple(float(v) for v in boxes[0].xywh[0])
+        coords = boxes[0].xywh[0]
+        obj_x = float(coords[0])
+        obj_y = float(coords[1])
 
         dx = obj_x - c_x
         dy = obj_y - c_y
