@@ -1,21 +1,10 @@
-# PSA Prática
+# PSA Prática - MQTT Communication
 
-A practical project developed at the **University of Aveiro** for the *Autonomous Systems* course. It explores real-time computer-vision pipelines applied to person detection and surveillance, using state-of-the-art AI models and standard hardware (webcam or depth camera).
+## When to use this branch
 
----
+This branch should be used for simulations. This allows for testing the communication between the detection program and the webots camera and controller. It can also be used to test the real pan&tilt or the real camera.
 
-## What this project does
-
-The project builds a modular surveillance system that can:
-
-- **Detect and track people** in a live video stream using [YOLOv8](https://github.com/ultralytics/ultralytics).
-- **Calculate movement vectors** (distance and direction relative to the frame centre) for each tracked person.
-- **Log detections to CSV** with timestamps, tracking IDs, confidence scores, and acceptance status.
-- **Select the best available hardware automatically** — Apple MPS (M-series), NVIDIA CUDA, or CPU.
-
-The roadmap included in each module extends the system toward full 3-D vigilance with face recognition (DeepFace / InsightFace) and depth sensing (Intel RealSense).
-
----
+It won't allways have the latest version of the main detection software.
 
 ## Repository structure
 
@@ -28,6 +17,7 @@ psa-pratica/
     ├── person_tracker.py  ← PersonTracker class
     ├── data.yaml      ← YOLOv8 dataset/validation config
     └── yolov8n.pt     ← YOLOv8 Nano model weights (auto-downloaded if missing)
+└── indoor/            ← Webots world and controllers
 ```
 
 ---
@@ -39,16 +29,53 @@ psa-pratica/
    pip install opencv-python ultralytics torch
    ```
 
-2. **Run the surveillance module**
+2. **Install the MQTT broker**
+   
+   On [mosquitto](https://mosquitto.org/download/) download the .exe file or follow the instructions corresponding to your OS.
+
+
+4. **Install and open the Webots world**
+
+   Install [Webots](https://cyberbotics.com)
+
+   Open the .wbt file on indoor\worlds\apartment.wbt, it should open already running, you can pause it and start it over.
+
+
+6. **Run the surveillance module**
+
+   Run the simulation on webots and then run the detection program with:
    ```bash
    cd visao
    python main.py
    ```
 
-3. **Stop the system**  
+
+4. **Stop the system**
+   
    Press **`q`** in the video window, or **`Ctrl+C`** in the terminal.
 
+   Then, pause the simulation on webots.
+
+
 > See [`visao/README.md`](visao/README.md) for full usage details, configuration options, and the `PersonTracker` API reference.
+
+---
+
+## Problem solving
+
+1. Ensure that all the paths are correct
+2. Always start the simulation on webots before running the detection program
+3. If the MQTT communication isn't working:
+   - Create a text file and paste the following:
+     ```bash
+     @echo off
+     cd "C:\Program Files\Mosquitto"
+     mosquitto.exe -c mosquitto.conf -v
+     pause
+     ```
+   - Make sure to replace the folder path and the .conf file name with the ones you do have (the .conf file should be inside the folder)
+   - Save the text file as a .bat file
+   - Open that file everytime you intend to work on this simulation and keep it running
 
 ---
 
@@ -60,6 +87,8 @@ psa-pratica/
 | Video capture & display | [OpenCV](https://opencv.org/) |
 | Deep learning backend | [PyTorch](https://pytorch.org/) (MPS / CUDA / CPU) |
 | Data logging | Python `csv` (standard library) |
+| MQTT broker | [mosquitto](https://mosquitto.org/download/) |
+| Webots | [Webots](https://cyberbotics.com) |
 
 ---
 
