@@ -3,6 +3,7 @@ import torch
 import time
 import os
 import math
+import collections
 from ultralytics import YOLO
 
 
@@ -12,11 +13,19 @@ class PersonTracker:
     Thus creating a cleaner way to import code into other packages.
     """
 
-    def __init__(self, model_path="yolov8n.pt", conf_threshold=0.3, accept_threshold=None):
+    def __init__(self,
+                 model_path="yolov8n.pt",
+                 face_model_path="yolov8n-face.pt",  # e.g. from akanametov/yolov8-face
+                 conf_threshold=0.3,
+                 accept_threshold=None,
+                 face_queue_size=10,
+                 ):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
         # Defaults to the model's confidence threshold if not explicitly set.
         self.accept_threshold = accept_threshold if accept_threshold is not None else conf_threshold
+
+
         # Internal tracking confidence: lower than accept_threshold so that
         # some detections can be logged as "Rejected" instead of being filtered
         # out by the model itself.
@@ -25,16 +34,22 @@ class PersonTracker:
 
         # Interval (in seconds) between performance log prints.
         # This prevents per-frame printing from becoming a bottleneck.
-        self.performance_log_interval = 1.0
+        self.performance_log_interval = 2.0 # second interval in between prints
         self._last_perf_print_time = 0.0
 
-        # Resolve model_path relative to this file if it is not absolute
-        if not os.path.isabs(model_path):
-            base_dir = os.path.dirname(__file__)
-            model_path = os.path.join(base_dir, model_path)
+        # Resolve model paths relative to this file if they are not absolute
+        for attr, path in [("_model_path", model_path), ("_face_model_path", face_model_path)]:
+            if not os.path.isabs(path):
+                path = os.path.join(os.path.dirname(__file__), path)
+            setattr(self, attr, path)
 
-        self.model = YOLO(model_path)
+        self.model = YOLO(self._model_path)
+        self.face_model = YOLO(self._face_model_path)
         self.cap = None
+
+        # LIFO queue: deque used as a stack (append right, pop right)
+        # LIFO --> last in first out method used to control runs
+        self._face_stack: collections.deque = collections.deque(maxlen=face_queue_size)
 
         print(f"Using device: {self.device}")
 
@@ -52,73 +67,6 @@ class PersonTracker:
         if not self.cap.isOpened():
             raise RuntimeError("Error: Could not open camera.")
         print("Surveillance started... Press 'q' to quit.")
-
-    def run(self):
-        """
-        Generator that processes frames and yields (vector, frame, boxes).
-
-        Vector format: [magnitude (0-1), angle (degrees)]
-        boxes: Ultralytics Boxes object for the current frame, or None when no
-               detections are present. Callers that want to log detections to a
-               CSV file should open the file themselves and pass the resulting
-               ``csv.writer`` to :meth:`log_detections`.
-
-        Example::
-
-            with open("out.csv", "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
-                for vector, frame, boxes in tracker.run():
-                    if boxes is not None:
-                        tracker.log_detections(writer, boxes)
-                    # … display / act on frame …
-        """
-        try:
-            self._setup_camera()
-
-            while self.cap.isOpened():
-                start_time = time.time()
-                success, frame = self.cap.read()
-
-                if not success:
-                    break
-
-                # Tracking only class 0 (People)
-                results = self.model.track(
-                    frame,
-                    persist=True,
-                    conf=self.track_conf,
-                    device=self.device,
-                    classes=[0]
-                )
-
-                vector = None
-                boxes = None
-                annotated_frame = results[0].plot()
-
-                # new -- calculating movement vector
-                if results[0].boxes is not None and len(results[0].boxes) > 0:
-                    boxes = results[0].boxes
-
-                    # calculating movement vector
-                    vector = self._get_movement_vector(frame, boxes)
-
-                    # Draw visual debug info on the annotated frame
-                    if vector:
-                        h, w, _ = frame.shape
-                        obj_x, obj_y = boxes[0].xywh[0][:2]
-                        cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
-                                 2)
-                        cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-                self._display_performance(start_time)
-
-                # Yield the data to the external loop
-                yield vector, annotated_frame, boxes
-
-        finally:
-            self.cleanup()
 
     def log_detections(self, csv_writer, boxes):
         """Helper to write detection data to CSV."""
@@ -210,3 +158,122 @@ class PersonTracker:
         angle = math.degrees(math.atan2(dy, dx))
 
         return [round(float(magnitude), 3), round(float(angle), 2)]
+
+    def push_face(self, face_crop: "np.ndarray"):
+        """Push a face crop onto the LIFO stack."""
+        self._face_stack.append(face_crop)
+
+    def pop_face(self) -> "np.ndarray | None":
+        """
+        Pop the most-recently-added face crop (LIFO).
+        Returns None if the stack is empty.
+        """
+        if self._face_stack:
+            return self._face_stack.pop()
+        return None
+
+
+    def _detect_faces(self, frame) -> list:
+        """
+        Run face detection on a frame.
+        Returns a list of cropped face images (numpy arrays).
+        """
+        results = self.face_model(frame, conf=self.conf_threshold, device=self.device)
+        crops = []
+        if results[0].boxes is not None:
+            for box in results[0].boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                # Clamp to frame bounds
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+                crop = frame[y1:y2, x1:x2]
+                if crop.size > 0:
+                    crops.append(crop)
+        return crops
+
+    def run(self):
+        """
+        Generator that processes frames and yields (vector, frame, boxes).
+
+        Vector format: [magnitude (0-1), angle (degrees)]
+        boxes: Ultralytics Boxes object for the current frame, or None when no
+               detections are present. Callers that want to log detections to a
+               CSV file should open the file themselves and pass the resulting
+               ``csv.writer`` to :meth:`log_detections`.
+
+        Example::
+
+            with open("out.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Timestamp", "ID", "Confidence", "Status"])
+                for vector, frame, boxes in tracker.run():
+                    if boxes is not None:
+                        tracker.log_detections(writer, boxes)
+                    # … display / act on frame …
+        """
+        try:
+            self._setup_camera()
+
+            while self.cap.isOpened():
+                start_time = time.time()
+                success, frame = self.cap.read()
+                if not success:
+                    break
+
+                # Tracking only class 0 (People)
+                person_results = self.model.track(
+                    frame,
+                    persist=True,
+                    conf=self.track_conf,
+                    device=self.device,
+                    classes=[0]
+                )
+
+                vector = None
+                boxes = None
+                # Plot person tracking results
+                annotated_frame = person_results[0].plot()
+
+                # Plot face detection results on the same frame
+                annotated_frame = face_results[0].plot(img=annotated_frame)
+
+                # new -- calculating movement vector
+                if person_results[0].boxes is not None and len(person_results[0].boxes) > 0:
+                    boxes = person_results[0].boxes
+
+                    # calculating movement vector
+                    vector = self._get_movement_vector(frame, boxes)
+
+                    # Draw visual debug info on the annotated frame
+                    if vector:
+                        h, w, _ = frame.shape
+                        obj_x, obj_y = boxes[0].xywh[0][:2]
+                        cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
+                                 2)
+                        cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
+                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+
+                # section related to face recognition
+                # %% Sub section: --- Face detection & LIFO push ---
+                face_crops = self._detect_faces(frame)
+                for crop in face_crops:
+                    self.push_face(crop)
+
+                # Draw face bounding boxes on annotated frame
+                face_results = self.face_model(frame, conf=self.conf_threshold, device=self.device)
+                for box in (face_results[0].boxes or []):
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                    cv2.putText(annotated_frame, f"face {float(box.conf[0]):.2f}",
+                                (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+
+                # %% Results and outputs
+                self._display_performance(start_time)
+
+                # Yield the data to the external loop
+                yield vector, annotated_frame, boxes
+
+        finally:
+            self.cleanup()
