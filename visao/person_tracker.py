@@ -5,6 +5,8 @@ import os
 import math
 import collections
 from ultralytics import YOLO
+import numpy as np
+from typing import Optional
 
 
 class PersonTracker:
@@ -37,6 +39,9 @@ class PersonTracker:
         self.performance_log_interval = 2.0 # second interval in between prints
         self._last_perf_print_time = 0.0
 
+        self._model_path = model_path
+        self._face_model_path = face_model_path
+
         # Resolve model paths relative to this file if they are not absolute
         for attr, path in [("_model_path", model_path), ("_face_model_path", face_model_path)]:
             if not os.path.isabs(path):
@@ -54,7 +59,8 @@ class PersonTracker:
 
         print(f"Using device: {self.device}")
 
-    def _get_device(self):
+    @staticmethod
+    def _get_device():
         """Internal method to detect the best available hardware."""
         if torch.backends.mps.is_available():
             return "mps"
@@ -132,7 +138,8 @@ class PersonTracker:
         cv2.destroyAllWindows()
         print("Resources released.")
 
-    def _get_movement_vector(self, frame, boxes):
+    @staticmethod
+    def _get_movement_vector(frame, boxes):
         """
         Calculates the [magnitude, angle] vector for the person with the first ID
         """
@@ -164,7 +171,7 @@ class PersonTracker:
         """Push a face crop onto the LIFO stack."""
         self._face_stack.append(face_crop)
 
-    def pop_face(self) -> "np.ndarray | None":
+    def pop_face(self) -> Optional[np.ndarray]:
         """
         Pop the most-recently-added face crop (LIFO).
         Returns None if the stack is empty.
@@ -173,24 +180,39 @@ class PersonTracker:
             return self._face_stack.pop()
         return None
 
+    def _process_faces(self, frame, boxes, annotated_frame):
+        """
+        Runs face detection on each person crop (not full frame).
+        Draws face boxes on annotated_frame, pushes crops to LIFO stack.
+        Returns updated annotated_frame and list of face crops.
+        """
+        face_crops = []
+        if boxes is None:
+            return annotated_frame, face_crops
 
-    def _detect_faces(self, frame) -> list:
-        """
-        Run face detection on a frame.
-        Returns a list of cropped face images (numpy arrays).
-        """
-        results = self.face_model(frame, conf=self.conf_threshold, device=self.device)
-        crops = []
-        if results[0].boxes is not None:
-            for box in results[0].boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                # Clamp to frame bounds
-                x1, y1 = max(0, x1), max(0, y1)
-                x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
-                crop = frame[y1:y2, x1:x2]
-                if crop.size > 0:
-                    crops.append(crop)
-        return crops
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+            person_crop = frame[y1:y2, x1:x2]
+
+            face_results = self.face_model(person_crop, conf=self.conf_threshold, device=self.device, verbose=False)
+            if face_results[0].boxes is None:
+                continue
+
+            for fbox in face_results[0].boxes:
+                fx1, fy1, fx2, fy2 = map(int, fbox.xyxy[0])
+                # offset coords from person crop back to full frame
+                fx1, fx2 = fx1 + x1, fx2 + x1
+                fy1, fy2 = fy1 + y1, fy2 + y1
+                face_crop = frame[fy1:fy2, fx1:fx2]
+                if face_crop.size > 0:
+                    face_crops.append(face_crop)
+                    self.push_face(face_crop)
+            plotted_crop = face_results[0].plot(img=person_crop)
+            annotated_frame[y1:y2, x1:x2] = plotted_crop  # paste back into full frame
+        return annotated_frame, face_crops
+
 
     def run(self):
         """
@@ -227,47 +249,32 @@ class PersonTracker:
                     persist=True,
                     conf=self.track_conf,
                     device=self.device,
-                    classes=[0]
+                    classes=[0],
+                    verbose=False
                 )
 
                 vector = None
                 boxes = None
 
-                annotated_frame = person_results[0].plot() # Plot person tracking results
-                face_results = self.face_model(frame, conf=self.conf_threshold, device=self.device)  # ← move up
-                annotated_frame = face_results[0].plot(img=annotated_frame) # Plot face detection results on the same frame
-
-                # new -- calculating movement vector
+                # 1. assign boxes first
                 if person_results[0].boxes is not None and len(person_results[0].boxes) > 0:
                     boxes = person_results[0].boxes
-
-                    # calculating movement vector
+                    self._person_stack.append(boxes)  # LIFO push for persons
                     vector = self._get_movement_vector(frame, boxes)
 
-                    # Draw visual debug info on the annotated frame
-                    if vector:
-                        h, w, _ = frame.shape
-                        obj_x, obj_y = boxes[0].xywh[0][:2]
-                        cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0),
-                                 2)
-                        cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                # 2. plot persons
+                annotated_frame = person_results[0].plot()
 
+                # 3. now boxes is set — process faces on person crops
+                annotated_frame, face_crops = self._process_faces(frame, boxes, annotated_frame)
 
-                # section related to face recognition
-                # %% Sub section: --- Face detection & LIFO push ---
-                face_results = self.face_model(frame, conf=self.conf_threshold, device=self.device)
-                annotated_frame = face_results[0].plot(img=annotated_frame)
-                face_crops = []
-                if face_results[0].boxes is not None:
-                    for box in face_results[0].boxes:
-                        x1, y1, x2, y2 = map(int, box.xyxy[0])
-                        x1, y1 = max(0, x1), max(0, y1)
-                        x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
-                        crop = frame[y1:y2, x1:x2]
-                        if crop.size > 0:
-                            face_crops.append(crop)
-                            self.push_face(crop)
+                # 4. draw vector debug line
+                if vector:
+                    h, w, _ = frame.shape
+                    obj_x, obj_y = boxes[0].xywh[0][:2]
+                    cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                 # %% Results and outputs
                 self._display_performance(start_time)
