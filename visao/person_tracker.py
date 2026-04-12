@@ -49,6 +49,7 @@ class PersonTracker:
 
         # LIFO queue: deque used as a stack (append right, pop right)
         # LIFO --> last in first out method used to control runs
+        self._person_stack: collections.deque = collections.deque(maxlen=face_queue_size)
         self._face_stack: collections.deque = collections.deque(maxlen=face_queue_size)
 
         print(f"Using device: {self.device}")
@@ -231,11 +232,10 @@ class PersonTracker:
 
                 vector = None
                 boxes = None
-                # Plot person tracking results
-                annotated_frame = person_results[0].plot()
 
-                # Plot face detection results on the same frame
-                annotated_frame = face_results[0].plot(img=annotated_frame)
+                annotated_frame = person_results[0].plot() # Plot person tracking results
+                face_results = self.face_model(frame, conf=self.conf_threshold, device=self.device)  # ← move up
+                annotated_frame = face_results[0].plot(img=annotated_frame) # Plot face detection results on the same frame
 
                 # new -- calculating movement vector
                 if person_results[0].boxes is not None and len(person_results[0].boxes) > 0:
