@@ -256,18 +256,18 @@ class PersonTracker:
 
                 # section related to face recognition
                 # %% Sub section: --- Face detection & LIFO push ---
-                face_crops = self._detect_faces(frame)
-                for crop in face_crops:
-                    self.push_face(crop)
-
-                # Draw face bounding boxes on annotated frame
                 face_results = self.face_model(frame, conf=self.conf_threshold, device=self.device)
-                for box in (face_results[0].boxes or []):
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                    cv2.putText(annotated_frame, f"face {float(box.conf[0]):.2f}",
-                                (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-
+                annotated_frame = face_results[0].plot(img=annotated_frame)
+                face_crops = []
+                if face_results[0].boxes is not None:
+                    for box in face_results[0].boxes:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        x1, y1 = max(0, x1), max(0, y1)
+                        x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+                        crop = frame[y1:y2, x1:x2]
+                        if crop.size > 0:
+                            face_crops.append(crop)
+                            self.push_face(crop)
 
                 # %% Results and outputs
                 self._display_performance(start_time)
