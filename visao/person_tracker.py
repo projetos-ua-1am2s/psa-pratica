@@ -73,7 +73,7 @@ class PersonTracker:
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             raise RuntimeError("Error: Could not open camera.")
-        print("Surveillance started... Press 'q' to quit.")
+    
 
     def log_detections(self, csv_writer, boxes):
         """Helper to write detection data to CSV."""
@@ -200,17 +200,20 @@ class PersonTracker:
             if face_results[0].boxes is None:
                 continue
 
+            # Instead of pasting crop back, draw directly on annotated_frame with offset coords
             for fbox in face_results[0].boxes:
                 fx1, fy1, fx2, fy2 = map(int, fbox.xyxy[0])
-                # offset coords from person crop back to full frame
                 fx1, fx2 = fx1 + x1, fx2 + x1
                 fy1, fy2 = fy1 + y1, fy2 + y1
+                cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (255, 0, 0), 2)
+                cv2.putText(annotated_frame, f"face {float(fbox.conf[0]):.2f}",
+                            (fx1, fy1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
                 face_crop = frame[fy1:fy2, fx1:fx2]
                 if face_crop.size > 0:
                     face_crops.append(face_crop)
                     self.push_face(face_crop)
-            plotted_crop = face_results[0].plot(img=person_crop)
-            annotated_frame[y1:y2, x1:x2] = plotted_crop  # paste back into full frame
+
+
         return annotated_frame, face_crops
 
 

@@ -38,13 +38,14 @@ def main():
                 if boxes is not None:
                     surveillance_system.log_detections(writer, boxes)
 
+                """
                 if vector:
                     magnitude, angle = vector
                     # Your camera movement logic goes here
                     # Example: print only if the movement is significant
                     if magnitude > 0.05:
                         print(f"[ACTION] Tracking: Dist={magnitude:.3f}, Angle={angle:.1f}°")
-
+                """
                 # Show the result visually
                 cv2.imshow("Tracking View", frame)
 
