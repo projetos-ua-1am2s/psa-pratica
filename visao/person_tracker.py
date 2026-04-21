@@ -205,9 +205,41 @@ class PersonTracker:
                 fx1, fy1, fx2, fy2 = map(int, fbox.xyxy[0])
                 fx1, fx2 = fx1 + x1, fx2 + x1
                 fy1, fy2 = fy1 + y1, fy2 + y1
-                cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (255, 0, 0), 2)
-                cv2.putText(annotated_frame, f"face {float(fbox.conf[0]):.2f}",
-                            (fx1, fy1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+                # Draw red face box (BGR)
+                box_color = (0, 0, 255)
+                cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), box_color, 2)
+
+                # Build label and draw white text on a red background above the box
+                conf_val = float(fbox.conf[0])
+                label = f"face {conf_val:.2f}"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.6
+                thickness = 1
+                (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+
+                rect_x1 = fx1
+                rect_x2 = fx1 + tw + 6
+                rect_y2 = fy1 - 4
+                rect_y1 = rect_y2 - th - baseline - 4
+
+                # If there's not enough space above, clamp to top edge
+                if rect_y1 < 0:
+                    rect_y1 = max(0, fy1)
+                    rect_y2 = rect_y1 + th + baseline + 6
+
+                rect_x1 = max(0, rect_x1)
+                rect_y1 = max(0, rect_y1)
+                rect_x2 = min(annotated_frame.shape[1], rect_x2)
+                rect_y2 = min(annotated_frame.shape[0], rect_y2)
+
+                # Filled red rectangle background
+                cv2.rectangle(annotated_frame, (rect_x1, rect_y1), (rect_x2, rect_y2), box_color, -1)
+
+                # Put white text on top
+                text_org = (rect_x1 + 3, rect_y2 - baseline - 3)
+                cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
                 face_crop = frame[fy1:fy2, fx1:fx2]
                 if face_crop.size > 0:
                     face_crops.append(face_crop)
@@ -277,7 +309,7 @@ class PersonTracker:
                     obj_x, obj_y = boxes[0].xywh[0][:2]
                     cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0), 2)
                     cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
                 # %% Results and outputs
                 self._display_performance(start_time)
