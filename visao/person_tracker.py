@@ -39,6 +39,10 @@ class PersonTracker:
         self.performance_log_interval = 2.0 # second interval in between prints
         self._last_perf_print_time = 0.0
 
+        # variables for face detection
+        self._frame_face_skip = 0 # to store frames passed to avoid computing face model every frame
+        self._last_face_boxes = []
+
         self._model_path = model_path
         self._face_model_path = face_model_path
 
@@ -186,7 +190,9 @@ class PersonTracker:
         Draws face boxes on annotated_frame, pushes crops to LIFO stack.
         Returns updated annotated_frame and list of face crops.
         """
+        face_box = []
         face_crops = []
+
         if boxes is None:
             return annotated_frame, face_crops
 
@@ -200,7 +206,7 @@ class PersonTracker:
             if face_results[0].boxes is None:
                 continue
 
-            # Instead of pasting crop back, draw directly on annotated_frame with offset coords
+            # %% Instead of pasting crop back, draw directly on annotated_frame with offset coords
             for fbox in face_results[0].boxes:
                 fx1, fy1, fx2, fy2 = map(int, fbox.xyxy[0])
                 fx1, fx2 = fx1 + x1, fx2 + x1
@@ -212,10 +218,10 @@ class PersonTracker:
 
                 # Build label and draw white text on a red background above the box
                 conf_val = float(fbox.conf[0])
-                label = f"face {conf_val:.2f}"
+                label = f"Face {conf_val:.2f}"
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 0.6
-                thickness = 1
+                thickness = 2
                 (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
 
                 rect_x1 = fx1
@@ -245,10 +251,12 @@ class PersonTracker:
                     face_crops.append(face_crop)
                     self.push_face(face_crop)
 
+                face_box.append((fx1, fy1, fx2, fy2))
 
-        return annotated_frame, face_crops
+        return annotated_frame, face_crops, face_box
 
 
+    # %% Run method
     def run(self):
         """
         Generator that processes frames and yields (vector, frame, boxes).
@@ -300,8 +308,22 @@ class PersonTracker:
                 # 2. plot persons
                 annotated_frame = person_results[0].plot()
 
-                # 3. now boxes is set — process faces on person crops
-                annotated_frame, face_crops = self._process_faces(frame, boxes, annotated_frame)
+                if self._frame_face_skip > 3:
+                    # 3. now boxes is set — process faces on person crops
+                    annotated_frame, face_crops,self._last_face_boxes = self._process_faces(frame, boxes, annotated_frame)
+                    self._frame_face_skip = 0
+
+
+                else:
+                    self._frame_face_skip += 1
+
+                    label = f"Face"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 0.6
+                    thickness = 2
+                    cv2.putText(self._last_face_boxes, label, (10, 30), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+
 
                 # 4. draw vector debug line
                 if vector:
