@@ -194,7 +194,7 @@ class PersonTracker:
         face_crops = []
 
         if boxes is None:
-            return annotated_frame, face_crops
+            return annotated_frame, face_crops, []
 
         for box in boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -316,13 +316,9 @@ class PersonTracker:
 
                 else:
                     self._frame_face_skip += 1
-
-                    label = f"Face"
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    font_scale = 0.6
-                    thickness = 2
-                    cv2.putText(self._last_face_boxes, label, (10, 30), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
-
+                    face_crops = []
+                    for (fx1, fy1, fx2, fy2) in self._last_face_boxes:
+                        cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (0, 0, 255), 2)
 
 
                 # 4. draw vector debug line
