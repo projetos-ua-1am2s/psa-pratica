@@ -1,0 +1,305 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/apartment_structure/protos/Wall.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/stairs/protos/StraightStairsRail.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/stairs/protos/StraightStairs.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/VarnishedPine.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/apartment_structure/protos/Window.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/apartment_structure/protos/Ceiling.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/living_room_furniture/protos/Armchair.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/living_room_furniture/protos/Sofa.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/tables/protos/Table.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/mirror/protos/Mirror.proto"
+EXTERNPROTO "../protos/Pedestrian.proto"
+
+WorldInfo {
+  FPS 30
+}
+Viewpoint {
+  orientation 0.18685638315149264 0.44852826613230723 -0.8740177838899441 1.3499701152738068
+  position -9.243910127942895 19.654096994440597 13.005048177032025
+}
+Background {
+  skyColor [
+    0.501961 0.72549 1
+    0 0 0
+    0 0 0
+    0 0 0
+    0 0 0
+    0 0 0
+  ]
+}
+DirectionalLight {
+  direction 0 -1 0
+}
+DEF Building Group {
+  children [
+    Floor {
+      name "1st floor"
+      size 20 15
+      appearance Parquetry {
+        type "light strip"
+      }
+    }
+    Wall {
+      translation 4 -2.07 0
+      name "wall(5)"
+      size 0.2 0.78 2.5
+    }
+    Window {
+      translation 4 -3.7 0
+      size 0.2 2.5 2.5
+      bottomWallHeight 0.9
+      windowHeight 1.1
+      windowSillSize 0 0
+    }
+    Wall {
+      translation 4 3.5 0
+      name "wall(4)"
+      size 0.2 8 2.5
+    }
+    Wall {
+      translation 4 -6.2 0
+      name "wall(3)"
+      size 0.2 2.5 2.5
+    }
+    Wall {
+      translation 4 -1.1 2
+      name "wall(2)"
+      size 0.2 1.2 0.5
+    }
+    StraightStairsRail {
+      translation 4 7.5 2.5
+      rotation 0 0 1 -1.5707996938995747
+      run 13.6
+      rise 0
+      newelHeight 1.19
+      balusterHeight 1
+      nBalusters 30
+    }
+    StraightStairs {
+      translation -1.7 -6.8 0
+      stepSize 0.6 1.27 0.03
+      stepRise 0.25
+      nSteps 10
+      leftRail [
+        StraightStairsRail {
+          run 6
+          rise 2.5
+        }
+      ]
+      rightRail []
+    }
+    Wall {
+      translation 0 -7.5 0
+      rotation 0 0 1 1.5708003061004252
+      name "wall(1)"
+      size 0.2 20 5
+    }
+    Wall {
+      translation 10 0 0
+      size 0.2 15 5
+    }
+    Floor {
+      translation 7 0 2.5
+      name "2nd floor"
+      size 6 15
+      appearance Parquetry {
+        type "light strip"
+      }
+    }
+    Ceiling {
+      translation 5 0 2.5
+      size 10 15
+    }
+    Solid {
+      translation -10 0 0
+      children [
+        Solid {
+          translation 0 0 2.5
+          children [
+            Shape {
+              appearance PBRAppearance {
+                transparency 1
+                roughness 1
+                metalness 0
+                normalMap ImageTexture {
+                  url [
+                    "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/textures/roughcast/roughcast_normal.jpg"
+                  ]
+                }
+                textureTransform TextureTransform {
+                  scale 2.4 1
+                }
+              }
+              geometry Box {
+                size 0.2 15 5
+              }
+            }
+          ]
+          boundingObject Box {
+            size 0.2 15 5
+          }
+        }
+      ]
+      name "wall_1"
+      model "wall"
+    }
+    Solid {
+      translation 2 7.5 0
+      rotation 0 0 1 1.5707996938995747
+      children [
+        Solid {
+          translation 0 0 2.5
+          children [
+            Shape {
+              appearance PBRAppearance {
+                transparency 1
+                roughness 1
+                metalness 0
+                normalMap ImageTexture {
+                  url [
+                    "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/textures/roughcast/roughcast_normal.jpg"
+                  ]
+                }
+                textureTransform TextureTransform {
+                  scale 2.4 1
+                }
+              }
+              geometry Box {
+                size 0.2 16.2 5
+              }
+            }
+          ]
+          boundingObject Box {
+            size 0.2 20 5
+          }
+        }
+      ]
+      name "wall_2"
+      model "wall"
+    }
+  ]
+}
+DEF Forniture Group {
+  children [
+    Mirror {
+      translation -7 -7.37 1
+      rotation 1.0171504044775673e-08 0.7071072811865696 0.7071062811861719 3.14159
+      fieldOfView 0.7
+      width 1.5
+      height 1
+      frameThickness 0.03
+    }
+    Table {
+      translation -0.23 4.5 0
+      rotation 0 0 1 1.5707996938995747
+      size 1 1.8 0.6
+      trayAppearance VarnishedPine {
+        colorOverride 1 1 1
+        textureTransform TextureTransform {
+          scale 10 10
+        }
+      }
+      legAppearance VarnishedPine {
+        colorOverride 1 1 1
+        textureTransform TextureTransform {
+          scale 4 5
+        }
+      }
+    }
+    Sofa {
+      translation -0.34 6.5 0
+      rotation 0 0 1 -1.5707950010791611
+      color 0.306 0.255 0.302
+    }
+    Armchair {
+      translation 2.6 4.5 0
+      rotation 0 0 1 3.141592653589793
+      color 0.306 0.255 0.302
+    }
+  ]
+}
+Solid {
+  translation -3.5 -6.8 1.29
+  rotation 0 1 0 -0.3926996938995747
+  children [
+    Shape {
+      appearance PBRAppearance {
+        transparency 1
+      }
+      geometry Box {
+        size 6.5 1.6 0.01
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.5 1.6 0.01
+  }
+}
+Pedestrian {
+  translation -8.57 0 1.25
+  name "pedestre_green"
+  controller "record_pedestrian"
+  controllerArgs [
+    "--trajectory=-5 -6.5, 5 -6.5"
+  ]
+  enableBoundingObject TRUE
+  rightLegAngle -0.56
+  rightLowerLegAngle 0.84
+  leftLegAngle -0.55
+  leftLowerLegAngle 1.4
+  leftFootAngle 0.07
+  rightArmAngle 0.52
+  rightLowerArmAngle -0.47
+  leftArmAngle -0.52
+  leftHandAngle 0.12
+  headAngle 0.18
+}
+Pedestrian {
+  name "pedestrian_A"
+  controller "trajectory_A"
+  controllerArgs [
+    ""
+  ]
+  shirtColor 0.666667 0 1
+  pantsColor 0 0 0
+  shoesColor 1 1 1
+  skinColor 1 0.678431 0.619608
+}
+Pedestrian {
+  translation 0 -1.12 1.27
+  name "pedestrian_B"
+  controller "trajectory_B"
+  controllerArgs [
+    ""
+  ]
+  shirtColor 0 0 1
+  pantsColor 0.172549 0.180392 0.360784
+  shoesColor 0 0 0
+  skinColor 0.913725 0.666667 0.541176
+}
+Pedestrian {
+  translation 0 1.41 1.27
+  name "pedestrian_C"
+  controller "trajectory_C"
+  controllerArgs [
+    ""
+  ]
+  shirtColor 0.666667 1 1
+  pantsColor 0 0 0
+}
+Pedestrian {
+  translation 0 2.45 1.27
+  name "pedestrian_D"
+  controller "trajectory_D"
+  controllerArgs [
+    ""
+  ]
+  shirtColor 0 0 0
+  pantsColor 1 0.909804 0.780392
+  shoesColor 0 0 0
+  skinColor 1 0.74902 0.701961
+}
