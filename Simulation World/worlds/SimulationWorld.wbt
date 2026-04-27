@@ -18,8 +18,8 @@ WorldInfo {
   FPS 30
 }
 Viewpoint {
-  orientation 0.18685638315149264 0.44852826613230723 -0.8740177838899441 1.3499701152738068
-  position -9.243910127942895 19.654096994440597 13.005048177032025
+  orientation 0.3154006100681586 0.6511339533054975 -0.6903238587948323 1.547790191577982
+  position -10.74194666151546 25.460095216347145 42.49748734603593
 }
 Background {
   skyColor [
@@ -122,7 +122,6 @@ DEF Building Group {
           children [
             Shape {
               appearance PBRAppearance {
-                transparency 1
                 roughness 1
                 metalness 0
                 normalMap ImageTexture {
@@ -156,7 +155,6 @@ DEF Building Group {
           children [
             Shape {
               appearance PBRAppearance {
-                transparency 1
                 roughness 1
                 metalness 0
                 normalMap ImageTexture {
@@ -302,4 +300,88 @@ Pedestrian {
   pantsColor 1 0.909804 0.780392
   shoesColor 0 0 0
   skinColor 1 0.74902 0.701961
+}
+Robot {
+  translation -9.5 6 0.12
+  children [
+    DEF Pan HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 0 1
+      }
+      device [
+        RotationalMotor {
+          name "pan_motor"
+        }
+      ]
+      endPoint Solid {
+        translation 0.02 0.03 0.87
+        children [
+          DEF Tilt HingeJoint {
+            jointParameters HingeJointParameters {
+              axis 0 1 0
+            }
+            device [
+              RotationalMotor {
+                name "tilt_motor"
+              }
+            ]
+            endPoint Solid {
+              translation 0 0 0.02
+              rotation 0 1 0 0
+              children [
+                Camera {
+                  children [
+                    Transform {
+                      translation 0.07 -0.08 0.07
+                      rotation 0 0 1 1.5708003061004252
+                      scale 0.01 0.01 0.01
+                      children [
+                        CadShape {
+                          url [
+                            "../RGB sensor/RGB sensor.obj"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                  fieldOfView 0.9
+                  width 640
+                  height 480
+                }
+                Shape {
+                  appearance PBRAppearance {
+                    baseColor 0.454902 0.454902 0.454902
+                  }
+                  geometry Box {
+                    size 0.05 0.08 0.06
+                  }
+                }
+              ]
+            }
+          }
+          Shape {
+            appearance PBRAppearance {
+              baseColor 0.152941 0.152941 0.152941
+            }
+            geometry Box {
+              size 0.09 0.06 0.06
+            }
+          }
+        ]
+      }
+    }
+    DEF Tripé Transform {
+      rotation 1 0 0 1.5707996938995747
+      scale 0.03 0.03 0.03
+      children [
+        CadShape {
+          url [
+            "../54-tripod_21/tripod.obj"
+          ]
+        }
+      ]
+    }
+  ]
+  name "Camera"
+  controller "send_images"
 }
