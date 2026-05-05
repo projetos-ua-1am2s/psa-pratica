@@ -200,6 +200,10 @@ class PersonTracker:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
             person_crop = frame[y1:y2, x1:x2]
 
             face_results = self.face_model(person_crop, conf=self.conf_threshold, device=self.device, verbose=False)
