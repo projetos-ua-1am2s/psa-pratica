@@ -314,15 +314,22 @@ class PersonTracker:
 
                 if self._frame_face_skip > 3:
                     # 3. now boxes is set — process faces on person crops
-                    annotated_frame, face_crops,self._last_face_boxes = self._process_faces(frame, boxes, annotated_frame)
+                    if boxes is not None:
+                        annotated_frame, face_crops, self._last_face_boxes = self._process_faces(frame, boxes, annotated_frame)
+                    else:
+                        face_crops = []
+                        self._last_face_boxes = []
                     self._frame_face_skip = 0
 
 
                 else:
                     self._frame_face_skip += 1
                     face_crops = []
-                    for (fx1, fy1, fx2, fy2) in self._last_face_boxes:
-                        cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (0, 0, 255), 2)
+                    if boxes is not None:
+                        for (fx1, fy1, fx2, fy2) in self._last_face_boxes:
+                            cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (0, 0, 255), 2)
+                    else:
+                        self._last_face_boxes = []
 
 
                 # 4. draw vector debug line
