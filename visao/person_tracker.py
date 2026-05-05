@@ -268,7 +268,6 @@ class PersonTracker:
         return annotated_frame, face_crops, face_box
 
 
-    # %% Run method
     def run(self):
         """
         Generator that processes frames and yields (vector, frame, boxes).
