@@ -216,6 +216,14 @@ class PersonTracker:
                 fx1, fx2 = fx1 + x1, fx2 + x1
                 fy1, fy2 = fy1 + y1, fy2 + y1
 
+                fx1 = max(0, fx1)
+                fy1 = max(0, fy1)
+                fx2 = min(frame.shape[1], fx2)
+                fy2 = min(frame.shape[0], fy2)
+
+                if fx2 <= fx1 or fy2 <= fy1:
+                    continue
+
                 # Draw red face box (BGR)
                 box_color = (0, 0, 255)
                 cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), box_color, 2)
