@@ -7,6 +7,11 @@ import collections
 from ultralytics import YOLO
 import numpy as np
 from typing import Optional
+# MQTT
+import json
+import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
+from queue import Queue
 
 
 class PersonTracker:
@@ -21,6 +26,9 @@ class PersonTracker:
                  conf_threshold=0.3,
                  accept_threshold=None,
                  face_queue_size=10,
+                 input_source="camera",       # camera or mqtt
+                 use_mqtt_out=False,        # True to publish vectors
+                 mqtt_broker="localhost"
                  ):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
@@ -63,6 +71,32 @@ class PersonTracker:
 
         print(f"Using device: {self.device}")
 
+        # ----- MQTT Configuration -----
+        self.input_source = input_source.lower()
+        self.use_mqtt_out = use_mqtt_out
+        self.client = None
+        self.frame_queue = None
+
+        if self.input_source == "mqtt" or use_mqtt_out:
+            try:
+                # ?? self.client = mqtt.Client(CallbackAPIVersion.VERSION2, "VisionBrain")
+                # Construct client with a readable client_id. Use named-arg
+                # to avoid passing ordered params incorrectly across paho versions.
+                self.client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id="VisionBrain")
+                self.client.on_connect = self._on_connect
+                self.mqtt_broker = mqtt_broker
+                if self.input_source == "mqtt":
+                    # on_message callback signature is (client, userdata, message)
+                    self.client.on_message = self._on_message
+                    self.frame_queue = Queue(maxsize=1)     # Stores the most recent frame
+                self.client.connect(self.mqtt_broker, 1883, 60)
+                self.client.loop_start()
+
+            except Exception as e:
+                print(f"Error connecting to MQTT broker: {e}")
+                raise
+        # ------------------------------
+
     @staticmethod
     def _get_device():
         """Internal method to detect the best available hardware."""
@@ -71,6 +105,33 @@ class PersonTracker:
         elif torch.cuda.is_available():
             return "cuda"
         return "cpu"
+
+    # ----- MQTT Communication - Frame Reception -----
+
+    def _on_connect(client, userdata, flags, reason_code, properties):
+        # paho.mqtt on_connect callback signature: (client, userdata, flags, rc)
+        if reason_code == 0:
+            print(f"Connected to MQTT Broker! (Return Code: {reason_code})")
+            client.subscribe("Camera")
+        else:
+            print(f"Failed to connect, return code {reason_code}")
+
+    def _on_message(self, client, userdata, msg):
+        # This function is called whenever a frame is received via MQTT
+        # Convert received byte payload into a NumPy array
+        nparr = np.frombuffer(msg.payload, np.uint8)
+        # Decode the NumPy array into an OpenCV image
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if frame is not None:
+            # Keep only the latest frame to avoid processing delays
+            if self.frame_queue.full():
+                try:
+                    self.frame_queue.get_nowait()
+                except Exception:
+                    pass
+            self.frame_queue.put(frame)
+    # ------------------------------
 
     def _setup_camera(self):
         """Initializes the camera and checks if it's working."""
@@ -172,7 +233,7 @@ class PersonTracker:
         return [round(float(magnitude), 3), round(float(angle), 2)]
 
     def push_face(self, face_crop: "np.ndarray"):
-        """Push a face crop onto the LIFO stack."""
+        # Push a face crop onto the LIFO stack.
         self._face_stack.append(face_crop)
 
     def pop_face(self) -> Optional[np.ndarray]:
@@ -210,7 +271,7 @@ class PersonTracker:
             if face_results[0].boxes is None:
                 continue
 
-            # %% Instead of pasting crop back, draw directly on annotated_frame with offset coords
+            # Instead of pasting crop back, draw directly on annotated_frame with offset coords
             for fbox in face_results[0].boxes:
                 fx1, fy1, fx2, fy2 = map(int, fbox.xyxy[0])
                 fx1, fx2 = fx1 + x1, fx2 + x1
@@ -289,13 +350,31 @@ class PersonTracker:
                     # … display / act on frame …
         """
         try:
-            self._setup_camera()
+            # NEW INPUT BRANCH to handle mqtt integration
+            if self.input_source == "camera":
+                self._setup_camera()
+            else:
+                print("Processing started... Waiting for MQTT frames.")
 
-            while self.cap.isOpened():
+            while True:
                 start_time = time.time()
-                success, frame = self.cap.read()
-                if not success:
-                    break
+
+                # NEW FRAME READ LOGIC
+                if self.input_source == "camera":
+                    if not self.cap.isOpened():
+                        break
+                    success, frame = self.cap.read()
+                    if not success:
+                        break
+                else:
+                    try:
+                        if self.frame_queue is None:
+                            raise RuntimeError("MQTT frame_queue not initialized. Check input_source configuration.")
+                        frame = self.frame_queue.get(timeout=5)
+                    except:
+                        continue
+                    if frame is None:
+                        continue
 
                 # Tracking only class 0 (People)
                 person_results = self.model.track(
@@ -341,13 +420,18 @@ class PersonTracker:
 
                 # 4. draw vector debug line
                 if vector:
+                    # handling mqtt output if enabled, publishing the vector as a JSON string to the "Movement" topic
+                    if self.use_mqtt_out:
+                        payload = json.dumps({"magnitude": vector[0], "angle": vector[1]})
+                        self.client.publish("Movement", payload)
+
                     h, w, _ = frame.shape
                     obj_x, obj_y = boxes[0].xywh[0][:2]
                     cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0), 2)
                     cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
                                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-                # %% Results and outputs
+                # Results and outputs
                 self._display_performance(start_time)
 
                 # Yield the data to the external loop
