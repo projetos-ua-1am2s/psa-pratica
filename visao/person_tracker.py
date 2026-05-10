@@ -6,13 +6,18 @@ import math
 import collections
 from ultralytics import YOLO
 import numpy as np
-from typing import Optional
+from typing import Optional, Tuple
 # MQTT
 import json
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from queue import Queue
 
+# Face recognition
+from deepface import DeepFace
+import threading
+
+FACE_QUEUE_POLL_INTERVAL = 0.1 # waiting time
 
 class PersonTracker:
     """
@@ -97,6 +102,18 @@ class PersonTracker:
                 raise
         # ------------------------------
 
+        # ======= face recognition
+        self.face_db_path = "known_faces/"
+        self._stop_event = threading.Event()
+        # dictionary allows to identify multiple people in a single frame
+        # storing the name of the recognized person with the corresponding track_id
+        self.known_names = {}
+        self._known_names_lock = threading.Lock()
+        self._face_recognition_thread = threading.Thread(target=self._face_recognition_worker, daemon=True)
+        self._face_recognition_thread.start()
+
+        # ======= face recognition end
+
     @staticmethod
     def _get_device():
         """Internal method to detect the best available hardware."""
@@ -108,7 +125,7 @@ class PersonTracker:
 
     # ----- MQTT Communication - Frame Reception -----
 
-    def _on_connect(client, userdata, flags, reason_code, properties):
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
         # paho.mqtt on_connect callback signature: (client, userdata, flags, rc)
         if reason_code == 0:
             print(f"Connected to MQTT Broker! (Return Code: {reason_code})")
@@ -198,6 +215,9 @@ class PersonTracker:
 
     def cleanup(self):
         """Releases resources properly."""
+        self._stop_event.set() # to stop background thread
+        if hasattr(self, "_face_recognition_thread") and self._face_recognition_thread.is_alive():
+            self._face_recognition_thread.join(timeout=1.0)
         if self.cap:
             self.cap.release()
         cv2.destroyAllWindows()
@@ -232,11 +252,11 @@ class PersonTracker:
 
         return [round(float(magnitude), 3), round(float(angle), 2)]
 
-    def push_face(self, face_crop: "np.ndarray"):
+    def push_face(self, face_crop: Tuple[np.ndarray, int]):
         # Push a face crop onto the LIFO stack.
         self._face_stack.append(face_crop)
 
-    def pop_face(self) -> Optional[np.ndarray]:
+    def pop_face(self) -> Optional[Tuple[np.ndarray, int]]:
         """
         Pop the most-recently-added face crop (LIFO).
         Returns None if the stack is empty.
@@ -258,6 +278,8 @@ class PersonTracker:
             return annotated_frame, face_crops, []
 
         for box in boxes:
+            track_id = int(box.id[0]) if box.id is not None else -1 # for face recognition
+
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
@@ -320,14 +342,64 @@ class PersonTracker:
                 cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
                 face_crop = frame[fy1:fy2, fx1:fx2]
+
+                # face recognition loop
+                # will pop crops from the stack, so we push them here. The worker thread will handle recognition asynchronously.
                 if face_crop.size > 0:
                     face_crops.append(face_crop)
-                    self.push_face(face_crop)
+                    self.push_face((face_crop, track_id))
 
                 face_box.append((fx1, fy1, fx2, fy2))
 
         return annotated_frame, face_crops, face_box
 
+    # ==== face recognition
+    def face_recognition(self, face_crop, track_id=None):
+        if face_crop.size == 0:
+            return None
+
+        try:
+            matches = DeepFace.find(
+                img_path=face_crop,
+                db_path=self.face_db_path,
+                model_name="SFace",
+                enforce_detection=False,
+                silent=True,
+
+            )
+            return matches
+        except Exception as e:
+            shape = getattr(face_crop, "shape", None)
+            print(
+                f"DeepFace error during face recognition for track_id={track_id}, "
+                f"face_crop_shape={shape}, db_path='{self.face_db_path}': {e}"
+            )
+            return []
+
+    # running in a multi-threaded way to avoid blocking the main loop with face recognition processing
+    def _face_recognition_worker(self):
+        while not self._stop_event.is_set():  # Run until cleanup signals stop
+            data = self.pop_face()
+            if data is not None:
+                face_crop, track_id = data # unpacking tuple from processing_faces method
+                matches = self.face_recognition(face_crop, track_id=track_id)
+                # Print or handle matches here
+                if len(matches) > 0 and not matches[0].empty:
+                    # Get file path from 'identity' column
+                    file_path = matches[0].iloc[0]['identity']
+
+                    # Cross-platform extraction: "known_faces/john.jpg" -> "john"
+                    name = os.path.splitext(os.path.basename(file_path))[0]
+
+                    print(f"[FACE RECOGNITION] Match found: {name} (from {file_path})")
+                    with self._known_names_lock:
+                        self.known_names[track_id] = name
+
+
+            else:
+                time.sleep(FACE_QUEUE_POLL_INTERVAL)  # Wait if stack empty. Save CPU.
+
+    # ====== face recognition end
 
     def run(self):
         """
@@ -397,6 +469,59 @@ class PersonTracker:
 
                 # 2. plot persons
                 annotated_frame = person_results[0].plot()
+
+                # 2.1 because of face recognition
+                if boxes is not None:
+                    for box in boxes:
+                        track_id = int(box.id[0]) if box.id is not None else -1
+                        x1, y1 = map(int, box.xyxy[0][:2])  # Get top-left corner
+
+                        if track_id in self.known_names:
+
+                            # change for thread safety, as the worker thread updates known_names dict,
+                            # we need to lock it while reading
+                            with self._known_names_lock:
+                                name = self.known_names[track_id]
+
+                            label = f"{name}"
+                            font = cv2.FONT_HERSHEY_SIMPLEX
+                            font_scale = 0.8
+                            thickness = 2
+                            (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+
+                            # Draw a filled rectangle as background for the name label
+                            rect_x1 = x1
+                            rect_y1 = y1 - th - baseline - 10
+                            rect_x2 = x1 + tw + 10
+                            rect_y2 = y1
+
+                            # Ensure the rectangle is within frame bounds
+                            rect_x1 = max(0, rect_x1)
+                            rect_y1 = max(0, rect_y1)
+                            rect_x2 = min(annotated_frame.shape[1], rect_x2)
+                            rect_y2 = min(annotated_frame.shape[0], rect_y2)
+
+                            # Draw filled rectangle (BGR: Blue background)
+                            cv2.rectangle(annotated_frame, (rect_x1, rect_y1), (rect_x2, rect_y2), (255, 0, 0), -1)
+
+                            # Put white text on top of the rectangle
+                            text_org = (rect_x1 + 5, rect_y2 - baseline - 5)
+                            cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+                # ========== face recognition logic
+                with self._known_names_lock:
+                    recognized_name = next(iter(self.known_names.values()), None)
+
+                if recognized_name:
+                    # Display one recognized name on the video feed.
+                    cv2.putText(annotated_frame,
+                                f"Recognized: {recognized_name}",
+                                (10, 60),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,
+                                (255, 255, 0),
+                                2)
+
 
                 if self._frame_face_skip > 3:
                     # 3. now boxes is set — process faces on person crops
