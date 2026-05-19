@@ -107,7 +107,7 @@ class PersonTracker:
         self._stop_event = threading.Event()
         # dictionary allows to identify multiple people in a single frame
         # storing the name of the recognized person with the corresponding track_id
-        self.known_names = {}
+        self.known_names = {} # Dictionary hold ID:Name
         self._known_names_lock = threading.Lock()
         self._face_recognition_thread = threading.Thread(target=self._face_recognition_worker, daemon=True)
         self._face_recognition_thread.start()
@@ -347,7 +347,7 @@ class PersonTracker:
                 # will pop crops from the stack, so we push them here. The worker thread will handle recognition asynchronously.
                 if face_crop.size > 0:
                     face_crops.append(face_crop)
-                    self.push_face((face_crop, track_id))
+                    self.push_face((face_crop, track_id))  # Push tuple of (crop, track_id) for recognition thread
 
                 face_box.append((fx1, fy1, fx2, fy2))
 
@@ -382,18 +382,17 @@ class PersonTracker:
             data = self.pop_face()
             if data is not None:
                 face_crop, track_id = data # unpacking tuple from processing_faces method
-                matches = self.face_recognition(face_crop, track_id=track_id)
-                # Print or handle matches here
+                matches = self.face_recognition(face_crop)
+
                 if len(matches) > 0 and not matches[0].empty:
                     # Get file path from 'identity' column
-                    file_path = matches[0].iloc[0]['identity']
+                    file_path = matches[0]['identity'][0]
 
-                    # Cross-platform extraction: "known_faces/john.jpg" -> "john"
                     name = os.path.splitext(os.path.basename(file_path))[0]
+                    print(f"[FACE] ID {track_id} is {name}")
 
-                    print(f"[FACE RECOGNITION] Match found: {name} (from {file_path})")
                     with self._known_names_lock:
-                        self.known_names[track_id] = name
+                        self.known_names[track_id] = name  # Save to dict
 
 
             else:
@@ -466,6 +465,20 @@ class PersonTracker:
                     boxes = person_results[0].boxes
                     self._person_stack.append(boxes)  # LIFO push for persons
                     vector = self._get_movement_vector(frame, boxes)
+
+                # --- ADD THIS CLEANUP CODE ---
+                current_ids = set()
+                if boxes is not None:
+                    current_ids = {int(box.id[0]) for box in boxes if box.id is not None}
+
+                with self._known_names_lock:
+                    # line responsible for the cleanup of the known_names dict, it checks if the track_ids currently
+                    # in the dict are still present in the current frame's detections. If not, it removes them from the
+                    # dict to prevent stale data.
+                    stale_ids = [tid for tid in self.known_names.keys() if tid not in current_ids]
+                    for tid in stale_ids:
+                        del self.known_names[tid]
+                # -----------------------------
 
                 # 2. plot persons
                 annotated_frame = person_results[0].plot()
