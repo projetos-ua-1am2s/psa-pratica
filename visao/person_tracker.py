@@ -107,7 +107,7 @@ class PersonTracker:
         self._stop_event = threading.Event()
         # dictionary allows to identify multiple people in a single frame
         # storing the name of the recognized person with the corresponding track_id
-        self.known_names = {} # Dictionary hold ID:Name
+        self.known_names = {} # Dictionary holds 'ID -> Name'
         self._known_names_lock = threading.Lock()
         self._face_recognition_thread = threading.Thread(target=self._face_recognition_worker, daemon=True)
         self._face_recognition_thread.start()
