@@ -20,8 +20,8 @@ WorldInfo {
   FPS 30
 }
 Viewpoint {
-  orientation 0.07526512569224622 0.5527902283928084 -0.8299145282786398 0.9289734156212576
-  position -19.067823574145912 19.711662229815154 16.32351519501617
+  orientation 0.06920921644410791 0.5550389116390949 -0.8289402215634619 0.9123775850151912
+  position -18.51035102427277 18.2518592684217 14.749277162162498
 }
 Background {
   skyColor [
@@ -299,7 +299,7 @@ Pedestrian {
   headAngle 0.18
 }
 Pedestrian {
-  name "pedestrian_A"
+  name "pedestrian_stairs"
   controller "trajectory_A"
   controllerArgs [
     ""
@@ -311,7 +311,7 @@ Pedestrian {
 }
 Pedestrian {
   translation 0 -1.12 1.27
-  name "pedestrian_B"
+  name "pedestrian_mirror"
   controller "trajectory_B"
   controllerArgs [
     ""
@@ -323,7 +323,7 @@ Pedestrian {
 }
 Pedestrian {
   translation 0 1.41 1.27
-  name "pedestrian_C"
+  name "pedestrian_room"
   controller "trajectory_C"
   controllerArgs [
     ""
@@ -333,7 +333,7 @@ Pedestrian {
 }
 Pedestrian {
   translation 0 2.45 1.27
-  name "pedestrian_D"
+  name "pedestrian_sit"
   controller "trajectory_D"
   controllerArgs [
     ""
@@ -342,6 +342,33 @@ Pedestrian {
   pantsColor 1 0.909804 0.780392
   shoesColor 0 0 0
   skinColor 0.839216 0.627451 0.588235
+}
+Pedestrian {
+  translation -2.68 0 1.27
+  name "pedestrian_box"
+  controller "trajectory_box"
+  controllerArgs [
+    ""
+  ]
+}
+Robot {
+  translation -2.2 0 1.29
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.509804 0.133333 0.133333
+      }
+      geometry Box {
+        size 0.5 0.5 0.4
+      }
+    }
+  ]
+  name "box"
+  controller "box_controller"
+  controllerArgs [
+    ""
+  ]
+  supervisor TRUE
 }
 Robot {
   translation -9.5 6 0.12
