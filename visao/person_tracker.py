@@ -54,7 +54,26 @@ class PersonTracker:
 
         # variables for face detection
         self._frame_face_skip = 0 # to store frames passed to avoid computing face model every frame
+        # Cache for face bounding boxes and confidence scores.
+        # Always normalized to 5-tuples: (fx1, fy1, fx2, fy2, conf_val)
+        # where conf_val can be None if not available.
         self._last_face_boxes = []
+
+        # ===== Font rendering constants (hoisted to avoid per-frame recreation) =====
+        # Font parameters for face detection labels
+        self._face_label_font = cv2.FONT_HERSHEY_SIMPLEX
+        self._face_label_font_scale = 0.6
+        self._face_label_thickness = 2
+
+        # Font parameters for person name labels
+        self._person_name_font = cv2.FONT_HERSHEY_SIMPLEX
+        self._person_name_font_scale = 0.8
+        self._person_name_thickness = 2
+
+        # Font parameters for debug/info text (e.g., "Recognized:", vector info)
+        self._debug_info_font = cv2.FONT_HERSHEY_SIMPLEX
+        self._debug_info_font_scale = 1.0
+        self._debug_info_thickness = 2
 
         self._model_path = model_path
         self._face_model_path = face_model_path
@@ -314,10 +333,7 @@ class PersonTracker:
                 # Build label and draw white text on a red background above the box
                 conf_val = float(fbox.conf[0])
                 label = f"Face {conf_val:.2f}"
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.6
-                thickness = 2
-                (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                (tw, th), baseline = cv2.getTextSize(label, self._face_label_font, self._face_label_font_scale, self._face_label_thickness)
 
                 rect_x1 = fx1
                 rect_x2 = fx1 + tw + 6
@@ -339,7 +355,7 @@ class PersonTracker:
 
                 # Put white text on top
                 text_org = (rect_x1 + 3, rect_y2 - baseline - 3)
-                cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+                cv2.putText(annotated_frame, label, text_org, self._face_label_font, self._face_label_font_scale, (255, 255, 255), self._face_label_thickness, cv2.LINE_AA)
 
                 face_crop = frame[fy1:fy2, fx1:fx2]
 
@@ -387,8 +403,8 @@ class PersonTracker:
 
                 if len(matches) > 0 and not matches[0].empty:
                     # Get file path from 'identity' column
-                    file_path = matches[0]['identity'].iloc[0] # Positional index used to avoid KeyError if
-                    # 'identity' column is missing
+                    file_path = matches[0]['identity'].iloc[0 if 'identity' in matches[0].columns else 0]
+                    # Positional index used to avoid KeyError if 'identity' column is missing
 
                     name = os.path.splitext(os.path.basename(file_path))[0]
                     print(f"[FACE] ID {track_id} is {name}")
@@ -499,10 +515,7 @@ class PersonTracker:
                                 name = self.known_names[track_id]
 
                             label = f"{name}"
-                            font = cv2.FONT_HERSHEY_SIMPLEX
-                            font_scale = 0.8
-                            thickness = 2
-                            (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                            (tw, th), baseline = cv2.getTextSize(label, self._person_name_font, self._person_name_font_scale, self._person_name_thickness)
 
                             # Draw a filled rectangle as background for the name label
                             rect_x1 = x1
@@ -521,7 +534,7 @@ class PersonTracker:
 
                             # Put white text on top of the rectangle
                             text_org = (rect_x1 + 5, rect_y2 - baseline - 5)
-                            cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+                            cv2.putText(annotated_frame, label, text_org, self._person_name_font, self._person_name_font_scale, (255, 255, 255), self._person_name_thickness, cv2.LINE_AA)
 
                 # ========== face recognition logic
                 with self._known_names_lock:
@@ -532,10 +545,10 @@ class PersonTracker:
                     cv2.putText(annotated_frame,
                                 f"Recognized: {recognized_name}",
                                 (10, 60),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                1,
+                                self._debug_info_font,
+                                self._debug_info_font_scale,
                                 (255, 255, 0),
-                                2)
+                                self._debug_info_thickness)
 
 
                 if self._frame_face_skip > 3:
@@ -547,20 +560,12 @@ class PersonTracker:
                         self._last_face_boxes = []
                     self._frame_face_skip = 0
 
-
                 else:
                     self._frame_face_skip += 1
                     face_crops = []
                     if boxes is not None:
-                        for face_box_data in self._last_face_boxes:
-                            # Unpack coordinates and confidence
-                            if len(face_box_data) == 5:
-                                fx1, fy1, fx2, fy2, conf_val = face_box_data
-                            else:
-                                # Handle old format for backwards compatibility
-                                fx1, fy1, fx2, fy2 = face_box_data
-                                conf_val = None
-
+                        # Draw cached face boxes from previous frame (all normalized to 5-tuple format)
+                        for fx1, fy1, fx2, fy2, conf_val in self._last_face_boxes:
                             # Draw red face box (BGR)
                             box_color = (0, 0, 255)
                             cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), box_color, 2)
@@ -568,10 +573,7 @@ class PersonTracker:
                             # Draw confidence label if available
                             if conf_val is not None:
                                 label = f"Face {conf_val:.2f}"
-                                font = cv2.FONT_HERSHEY_SIMPLEX
-                                font_scale = 0.6
-                                thickness = 2
-                                (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                                (tw, th), baseline = cv2.getTextSize(label, self._face_label_font, self._face_label_font_scale, self._face_label_thickness)
 
                                 rect_x1 = fx1
                                 rect_x2 = fx1 + tw + 6
@@ -593,7 +595,7 @@ class PersonTracker:
 
                                 # Put white text on top
                                 text_org = (rect_x1 + 3, rect_y2 - baseline - 3)
-                                cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+                                cv2.putText(annotated_frame, label, text_org, self._face_label_font, self._face_label_font_scale, (255, 255, 255), self._face_label_thickness, cv2.LINE_AA)
                     else:
                         self._last_face_boxes = []
 
@@ -609,7 +611,7 @@ class PersonTracker:
                     obj_x, obj_y = boxes[0].xywh[0][:2]
                     cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0), 2)
                     cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                                (10, 30), self._debug_info_font, self._debug_info_font_scale, (255, 0, 0), self._debug_info_thickness)
 
                 # Results and outputs
                 self._display_performance(start_time)
