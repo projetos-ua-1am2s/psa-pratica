@@ -349,7 +349,8 @@ class PersonTracker:
                     face_crops.append(face_crop)
                     self.push_face((face_crop, track_id))  # Push tuple of (crop, track_id) for recognition thread
 
-                face_box.append((fx1, fy1, fx2, fy2))
+                # Store coordinates and confidence for later drawing on skipped frames
+                face_box.append((fx1, fy1, fx2, fy2, conf_val))
 
         return annotated_frame, face_crops, face_box
 
@@ -376,17 +377,18 @@ class PersonTracker:
             )
             return []
 
-    # running in a multi-threaded way to avoid blocking the main loop with face recognition processing
+    # running in a multithreaded way to avoid blocking the main loop with face recognition processing
     def _face_recognition_worker(self):
         while not self._stop_event.is_set():  # Run until cleanup signals stop
             data = self.pop_face()
             if data is not None:
                 face_crop, track_id = data # unpacking tuple from processing_faces method
-                matches = self.face_recognition(face_crop)
+                matches = self.face_recognition(face_crop,  track_id=track_id)
 
                 if len(matches) > 0 and not matches[0].empty:
                     # Get file path from 'identity' column
-                    file_path = matches[0]['identity'][0]
+                    file_path = matches[0]['identity'].iloc[0] # Positional index used to avoid KeyError if
+                    # 'identity' column is missing
 
                     name = os.path.splitext(os.path.basename(file_path))[0]
                     print(f"[FACE] ID {track_id} is {name}")
@@ -550,8 +552,48 @@ class PersonTracker:
                     self._frame_face_skip += 1
                     face_crops = []
                     if boxes is not None:
-                        for (fx1, fy1, fx2, fy2) in self._last_face_boxes:
-                            cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), (0, 0, 255), 2)
+                        for face_box_data in self._last_face_boxes:
+                            # Unpack coordinates and confidence
+                            if len(face_box_data) == 5:
+                                fx1, fy1, fx2, fy2, conf_val = face_box_data
+                            else:
+                                # Handle old format for backwards compatibility
+                                fx1, fy1, fx2, fy2 = face_box_data
+                                conf_val = None
+
+                            # Draw red face box (BGR)
+                            box_color = (0, 0, 255)
+                            cv2.rectangle(annotated_frame, (fx1, fy1), (fx2, fy2), box_color, 2)
+
+                            # Draw confidence label if available
+                            if conf_val is not None:
+                                label = f"Face {conf_val:.2f}"
+                                font = cv2.FONT_HERSHEY_SIMPLEX
+                                font_scale = 0.6
+                                thickness = 2
+                                (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+
+                                rect_x1 = fx1
+                                rect_x2 = fx1 + tw + 6
+                                rect_y2 = fy1 - 4
+                                rect_y1 = rect_y2 - th - baseline - 4
+
+                                # If there's not enough space above, clamp to top edge
+                                if rect_y1 < 0:
+                                    rect_y1 = max(0, fy1)
+                                    rect_y2 = rect_y1 + th + baseline + 6
+
+                                rect_x1 = max(0, rect_x1)
+                                rect_y1 = max(0, rect_y1)
+                                rect_x2 = min(annotated_frame.shape[1], rect_x2)
+                                rect_y2 = min(annotated_frame.shape[0], rect_y2)
+
+                                # Filled red rectangle background
+                                cv2.rectangle(annotated_frame, (rect_x1, rect_y1), (rect_x2, rect_y2), box_color, -1)
+
+                                # Put white text on top
+                                text_org = (rect_x1 + 3, rect_y2 - baseline - 3)
+                                cv2.putText(annotated_frame, label, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
                     else:
                         self._last_face_boxes = []
 
