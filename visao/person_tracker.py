@@ -403,8 +403,9 @@ class PersonTracker:
 
                 if len(matches) > 0 and not matches[0].empty:
                     # Get file path from 'identity' column
-                    file_path = matches[0]['identity'].iloc[0 if 'identity' in matches[0].columns else 0]
-                    # Positional index used to avoid KeyError if 'identity' column is missing
+                    file_path = matches[0]['identity'].iloc[0]
+                    # Positional index used to be 0, but if DeepFace returns a DataFrame with multiple matches,
+                    # we take the first one (iloc[0] -- relative position)
 
                     name = os.path.splitext(os.path.basename(file_path))[0]
                     print(f"[FACE] ID {track_id} is {name}")
