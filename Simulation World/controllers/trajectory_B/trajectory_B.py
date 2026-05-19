@@ -68,6 +68,8 @@ class PedestrianFollower(Supervisor):
         joints_fields = [root_node.getField(name) for name in self.joint_names]
 
         while self.step(time_step) != -1:
+            if self.getTime() < 3:
+                continue
             if not self.waypoints:
                 continue
 

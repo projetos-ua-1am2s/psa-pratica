@@ -14,13 +14,14 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/mirror/protos/Mirror.proto"
 EXTERNPROTO "../protos/Pedestrian.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Roughcast.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/plants/protos/PottedTree.proto"
 
 WorldInfo {
   FPS 30
 }
 Viewpoint {
-  orientation 0.031576007526049985 0.492631761805324 -0.8696648222213529 0.8562481913464364
-  position -22.711280822348183 21.400216311226377 13.264097634875041
+  orientation 0.07526512569224622 0.5527902283928084 -0.8299145282786398 0.9289734156212576
+  position -19.067823574145912 19.711662229815154 16.32351519501617
 }
 Background {
   skyColor [
@@ -221,6 +222,9 @@ DEF Building Group {
 }
 DEF Forniture Group {
   children [
+    PottedTree {
+      translation -9.26 -6.89 0
+    }
     Mirror {
       translation -7 -7.37 1
       rotation 1.0171504044775673e-08 0.7071072811865696 0.7071062811861719 3.14159
@@ -337,7 +341,7 @@ Pedestrian {
   shirtColor 0 0 0
   pantsColor 1 0.909804 0.780392
   shoesColor 0 0 0
-  skinColor 1 0.74902 0.701961
+  skinColor 0.839216 0.627451 0.588235
 }
 Robot {
   translation -9.5 6 0.12
