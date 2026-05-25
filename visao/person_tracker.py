@@ -256,7 +256,12 @@ class PersonTracker:
 
 
         # Target the first person in the list (tracked ID)
-        obj_x, obj_y, _, _ = tuple(float(v) for v in boxes[0].xywh[0])
+        # Target top 30% of first person box
+        c_obj_x, c_obj_y, box_w, box_h = tuple(float(v) for v in boxes[0].xywh[0])
+
+        obj_x = c_obj_x
+        # center Y - 50% height + 30% height = center Y - 20% height
+        obj_y = c_obj_y - (box_h * 0.2)
 
         dx = obj_x - c_x
         dy = obj_y - c_y
@@ -609,11 +614,15 @@ class PersonTracker:
                         self.client.publish("Movement", payload)
 
                     h, w, _ = frame.shape
-                    obj_x, obj_y = boxes[0].xywh[0][:2]
-                    cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (int(obj_x), int(obj_y)), (0, 255, 0), 2)
-                    cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
-                                (10, 30), self._debug_info_font, self._debug_info_font_scale, (255, 0, 0), self._debug_info_thickness)
 
+                    # Calculate same top 30% point for drawing
+                    c_obj_x, c_obj_y, box_w, box_h = boxes[0].xywh[0]
+                    obj_x = int(c_obj_x)
+                    obj_y = int(c_obj_y - (box_h * 0.2))
+
+                    cv2.line(annotated_frame, (int(w / 2), int(h / 2)), (obj_x, obj_y), (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f"V: {vector[0]} @ {vector[1]}deg",
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
                 # Results and outputs
                 self._display_performance(start_time)
 
