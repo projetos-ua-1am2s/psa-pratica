@@ -378,7 +378,7 @@ class PersonTracker:
     # ==== face recognition
     def face_recognition(self, face_crop, track_id=None):
         if face_crop.size == 0:
-            return None
+            return []
 
         try:
             matches = DeepFace.find(
