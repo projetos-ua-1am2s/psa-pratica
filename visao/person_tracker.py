@@ -513,13 +513,12 @@ class PersonTracker:
                         track_id = int(box.id[0]) if box.id is not None else -1
                         x1, y1 = map(int, box.xyxy[0][:2])  # Get top-left corner
 
-                        if track_id in self.known_names:
+                        # Read known_names atomically under the lock because the worker
+                        # thread may update the dictionary concurrently.
+                        with self._known_names_lock:
+                            name = self.known_names.get(track_id)
 
-                            # change for thread safety, as the worker thread updates known_names dict,
-                            # we need to lock it while reading
-                            with self._known_names_lock:
-                                name = self.known_names[track_id]
-
+                        if name is not None:
                             label = f"{name}"
                             (tw, th), baseline = cv2.getTextSize(label, self._person_name_font, self._person_name_font_scale, self._person_name_thickness)
 
