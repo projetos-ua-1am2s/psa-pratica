@@ -133,8 +133,13 @@ class PersonTracker:
         # storing the name of the recognized person with the corresponding track_id
         self.known_names = {} # Dictionary holds 'ID -> Name'
         self._known_names_lock = threading.Lock()
-        self._face_recognition_thread = threading.Thread(target=self._face_recognition_worker, daemon=True)
-        self._face_recognition_thread.start()
+        self._face_recognition_enabled = DeepFace is not None
+        self._face_recognition_thread = None
+        if self._face_recognition_enabled:
+            self._face_recognition_thread = threading.Thread(target=self._face_recognition_worker, daemon=True)
+            self._face_recognition_thread.start()
+        else:
+            print("DeepFace is not installed; face recognition is disabled.")
 
         # ======= face recognition end
 
