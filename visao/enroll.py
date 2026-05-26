@@ -22,8 +22,9 @@ def sanitize_person_name(person_name):
 
 
 def main():
-    db_path = "known_faces"
-    db_path_abs = os.path.abspath(db_path)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(base_dir, "known_faces")
+    db_path_abs = db_path
     os.makedirs(db_path, exist_ok=True)
 
     raw_person_name = input("Enter person name (e.g., john_doe): ").strip()
@@ -33,8 +34,11 @@ def main():
         return
 
     # Use same face model as tracker
-    face_model = YOLO("yolov8n-face.pt")
+    face_model = YOLO(os.path.join(base_dir, "yolov8n-face.pt"))
     cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[ERROR] Could not open camera.")
+        return
 
     saved_crops = []
     max_images = 3

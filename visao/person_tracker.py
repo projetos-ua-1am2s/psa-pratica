@@ -125,8 +125,10 @@ class PersonTracker:
         # ------------------------------
 
         # ======= face recognition
-        self.face_db_path = "known_faces/"
+        self.face_db_path = os.path.join(os.path.dirname(__file__), "known_faces")
+        os.makedirs(self.face_db_path, exist_ok=True)
         self._stop_event = threading.Event()
+        self._active_track_ids = set()
         # dictionary allows to identify multiple people in a single frame
         # storing the name of the recognized person with the corresponding track_id
         self.known_names = {} # Dictionary holds 'ID -> Name'
@@ -148,7 +150,8 @@ class PersonTracker:
     # ----- MQTT Communication - Frame Reception -----
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
-        # paho.mqtt on_connect callback signature: (client, userdata, flags, rc)
+        # paho.mqtt (CallbackAPIVersion.VERSION2) on_connect callback signature:
+        # (client, userdata, flags, reason_code, properties)
         if reason_code == 0:
             print(f"Connected to MQTT Broker! (Return Code: {reason_code})")
             client.subscribe("Camera")
@@ -305,7 +308,7 @@ class PersonTracker:
             return annotated_frame, face_crops, []
 
         for box in boxes:
-            track_id = int(box.id[0]) if box.id is not None else -1 # for face recognition
+            track_id = int(box.id[0]) if box.id is not None else None # for face recognition
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             x1, y1 = max(0, x1), max(0, y1)
@@ -371,7 +374,8 @@ class PersonTracker:
                 # will pop crops from the stack, so we push them here. The worker thread will handle recognition asynchronously.
                 if face_crop.size > 0:
                     face_crops.append(face_crop)
-                    self.push_face((face_crop, track_id))  # Push tuple of (crop, track_id) for recognition thread
+                    if track_id is not None:
+                        self.push_face((face_crop, track_id))  # Push tuple of (crop, track_id) for recognition thread
 
                 # Store coordinates and confidence for later drawing on skipped frames
                 face_box.append((fx1, fy1, fx2, fy2, conf_val))
@@ -419,7 +423,8 @@ class PersonTracker:
                     print(f"[FACE] ID {track_id} is {name}")
 
                     with self._known_names_lock:
-                        self.known_names[track_id] = name  # Save to dict
+                        if track_id in self._active_track_ids:
+                            self.known_names[track_id] = name  # Save to dict
 
 
             else:
@@ -499,6 +504,7 @@ class PersonTracker:
                     current_ids = {int(box.id[0]) for box in boxes if box.id is not None}
 
                 with self._known_names_lock:
+                    self._active_track_ids = set(current_ids)
                     # line responsible for the cleanup of the known_names dict, it checks if the track_ids currently
                     # in the dict are still present in the current frame's detections. If not, it removes them from the
                     # dict to prevent stale data.
