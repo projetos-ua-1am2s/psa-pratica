@@ -315,6 +315,12 @@ class PersonTracker:
         for box in boxes:
             track_id = int(box.id[0]) if box.id is not None else None # for face recognition
 
+            # ===== SKIP CHIP IF PERSON ALREADY RECOGNIZED =====
+            with self._known_names_lock:
+                if track_id in self.known_names:
+                    continue
+            # ==================================================
+
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
