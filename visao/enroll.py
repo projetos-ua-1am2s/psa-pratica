@@ -5,6 +5,8 @@ from ultralytics import YOLO
 import re
 
 
+difference_threshold_definition = 10000.0  # Tweak this. Higher = requires more head movement.
+
 def calculate_mse(imageA, imageB):
     # Resize to identical dimensions for pixel math
     imgA = cv2.resize(imageA, (100, 100))
@@ -18,7 +20,10 @@ def calculate_mse(imageA, imageB):
 
 def sanitize_person_name(person_name):
     # Allow only safe filename characters and normalize everything else to '_'.
-    return re.sub(r"[^A-Za-z0-9_-]", "_", person_name).strip("_")
+    sanitized_name = re.sub(r"[^A-Za-z0-9_-]", "_", person_name).strip("_")
+    if sanitized_name.lower() == "none":
+        return ""
+    return sanitized_name
 
 
 def main():
@@ -42,7 +47,7 @@ def main():
 
     saved_crops = []
     max_images = 3
-    mse_threshold = 10000.0  # Tweak this. Higher = requires more head movement.
+    mse_threshold = difference_threshold_definition  # Tweak this. Higher = requires more head movement.
     # initial value was 4000 (requires very little movement)
 
     print(f"\n--- Enrolling: {person_name} ---")

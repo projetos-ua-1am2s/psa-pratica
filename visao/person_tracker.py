@@ -36,7 +36,8 @@ class PersonTracker:
                  face_queue_size=10,
                  input_source="camera",       # camera or mqtt
                  use_mqtt_out=False,        # True to publish vectors
-                 mqtt_broker="localhost"
+                 mqtt_broker="localhost",
+                 auto_enroll = False        # For Enrolling code section activation
                  ):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
@@ -142,6 +143,8 @@ class PersonTracker:
             print("DeepFace is not installed; face recognition is disabled.")
 
         # ======= face recognition end
+        self.auto_enroll = auto_enroll
+        self.trigger_enroll = False # Flag to signal enrollment process for unknown faces
 
     @staticmethod
     def _get_device():
@@ -315,7 +318,7 @@ class PersonTracker:
         for box in boxes:
             track_id = int(box.id[0]) if box.id is not None else None # for face recognition
 
-            # ===== SKIP CHIP IF PERSON ALREADY RECOGNIZED =====
+            # ===== SKIP Recognition IF PERSON ALREADY RECOGNIZED =====
             with self._known_names_lock:
                 if track_id in self.known_names:
                     continue
@@ -424,7 +427,7 @@ class PersonTracker:
                 face_crop, track_id = data # unpacking tuple from processing_faces method
                 matches = self.face_recognition(face_crop,  track_id=track_id)
 
-                if len(matches) > 0 and not matches[0].empty:
+                if matches is not None and len(matches) > 0 and not matches[0].empty:
                     # Get file path from 'identity' column
                     file_path = matches[0]['identity'].iloc[0]
                     # Positional index used to be 0, but if DeepFace returns a DataFrame with multiple matches,
@@ -436,6 +439,16 @@ class PersonTracker:
                     with self._known_names_lock:
                         if track_id in self._active_track_ids:
                             self.known_names[track_id] = name  # Save to dict
+
+                else:
+                    # NEW: Unknown face logic
+                    print(f"[FACE] ID {track_id} is Unknown")
+
+                    if self.auto_enroll:  # --- CHECK MASTER SWITCH ---
+                        with self._known_names_lock:
+                            if track_id not in self.known_names:
+                                self.known_names[track_id] = "Enrolling..."  # Block duplicate triggers
+                                self.trigger_enroll = True
 
 
             else:
@@ -472,6 +485,25 @@ class PersonTracker:
 
             while True:
                 start_time = time.time()
+
+                # --- AUTO ENROLL TRIGGER (NO CAMERA RELEASE) ---
+                if getattr(self, 'trigger_enroll', False):
+                    print("\n[SYSTEM] Unknown detected. Launching enroll.py...")
+
+                    import subprocess
+                    import sys
+                    subprocess.run([sys.executable, "enroll.py"])
+
+                    # Delete DeepFace cache so it finds new photos
+                    pkl_path = os.path.join(self.face_db_path, "representations_sface.pkl")
+                    if os.path.exists(pkl_path):
+                        os.remove(pkl_path)
+                        print("[SYSTEM] Deleted DeepFace cache.")
+
+                    self.trigger_enroll = False
+                    print("[SYSTEM] Resuming tracker...\n")
+                    continue
+                # ---------------------------
 
                 # NEW FRAME READ LOGIC
                 if self.input_source == "camera":
