@@ -5,7 +5,7 @@ from ultralytics import YOLO
 import re
 
 
-difference_threshold_definition = 10000.0  # Tweak this. Higher = requires more head movement.
+difference_threshold_definition = 5000.0  # Tweak this. Higher = requires more head movement.
 
 def calculate_mse(imageA, imageB):
     # Resize to identical dimensions for pixel math
