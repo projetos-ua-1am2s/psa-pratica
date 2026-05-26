@@ -14,7 +14,10 @@ from paho.mqtt.enums import CallbackAPIVersion
 from queue import Queue
 
 # Face recognition
-from deepface import DeepFace
+try:
+    from deepface import DeepFace
+except ImportError:
+    DeepFace = None
 import threading
 
 FACE_QUEUE_POLL_INTERVAL = 0.1 # waiting time
