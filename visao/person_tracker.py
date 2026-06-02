@@ -12,6 +12,8 @@ import json
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from queue import Queue
+import pyttsx3 # responsible for the text2speech
+
 
 # Face recognition
 try:
@@ -145,6 +147,8 @@ class PersonTracker:
         # ======= face recognition end
         self.auto_enroll = auto_enroll
         self.trigger_enroll = False # Flag to signal enrollment process for unknown faces
+
+        self._announced_track_ids = set()  # to avoid repeating already announced IDs
 
     @staticmethod
     def _get_device():
@@ -441,6 +445,12 @@ class PersonTracker:
                         if track_id in self._active_track_ids:
                             self.known_names[track_id] = name  # Save to dict
 
+                            # code responsible for starting announcement in the second thread
+                            if track_id not in self._announced_track_ids:
+                                self._announced_track_ids.add(track_id)
+                                threading.Thread(target=self._speak_worker, args=(f"Recognized {name}",),
+                                                 daemon=True).start()
+
                 else:
                     # NEW: Unknown face logic
                     # print(f"[FACE] ID {track_id} is Unknown")
@@ -456,6 +466,11 @@ class PersonTracker:
                 time.sleep(FACE_QUEUE_POLL_INTERVAL)  # Wait if stack empty. Save CPU.
 
     # ====== face recognition end
+
+    def _speak_worker(self, text):
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
 
     def run(self):
         """
@@ -556,6 +571,9 @@ class PersonTracker:
                     stale_ids = [tid for tid in self.known_names.keys() if tid not in current_ids]
                     for tid in stale_ids:
                         del self.known_names[tid]
+
+                        if tid in self._announced_track_ids:
+                            self._announced_track_ids.remove(tid)
                 # -----------------------------
 
                 # 2. plot persons
