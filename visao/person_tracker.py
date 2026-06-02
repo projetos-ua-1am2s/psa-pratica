@@ -37,7 +37,7 @@ class PersonTracker:
                  input_source="camera",       # camera or mqtt
                  use_mqtt_out=False,        # True to publish vectors
                  mqtt_broker="localhost",
-                 auto_enroll = False        # For Enrolling code section activation
+                 auto_enroll=False        # For Enrolling code section activation
                  ):
         self.conf_threshold = conf_threshold
         # Threshold used to classify detections as Accepted/Rejected in logs.
