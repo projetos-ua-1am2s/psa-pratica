@@ -434,7 +434,7 @@ class PersonTracker:
                     # we take the first one (iloc[0] -- relative position)
 
                     name = os.path.splitext(os.path.basename(file_path))[0]
-                    print(f"[FACE] ID {track_id} is {name}")
+                    # print(f"[FACE] ID {track_id} is {name}")
 
                     with self._known_names_lock:
                         if track_id in self._active_track_ids:
@@ -442,7 +442,7 @@ class PersonTracker:
 
                 else:
                     # NEW: Unknown face logic
-                    print(f"[FACE] ID {track_id} is Unknown")
+                    # print(f"[FACE] ID {track_id} is Unknown")
 
                     if self.auto_enroll:  # --- CHECK MASTER SWITCH ---
                         with self._known_names_lock:
