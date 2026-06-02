@@ -13,7 +13,7 @@ except ImportError:
 def main():
     # 1. Initialize System
     data_config_path = Path(__file__).resolve().parent / "data.yaml"
-    surveillance_system = PersonTracker(conf_threshold=0.5)
+    surveillance_system = PersonTracker(conf_threshold=0.5, auto_enroll=False)
 
     print("\n--- Surveillance System Active ---")
     print("Commands:")
