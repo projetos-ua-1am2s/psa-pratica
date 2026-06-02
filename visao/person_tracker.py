@@ -541,7 +541,8 @@ class PersonTracker:
                     self._person_stack.append(boxes)  # LIFO push for persons
                     vector = self._get_movement_vector(frame, boxes)
 
-                # --- ADD THIS CLEANUP CODE ---
+                # --- CLEANUP CODE for IDs ---
+                # When a ID leaves frame we need to remove it from the database
                 current_ids = set()
                 if boxes is not None:
                     current_ids = {int(box.id[0]) for box in boxes if box.id is not None}
