@@ -320,7 +320,8 @@ class PersonTracker:
 
             # ===== SKIP Recognition IF PERSON ALREADY RECOGNIZED =====
             with self._known_names_lock:
-                if track_id in self.known_names:
+                name = self.known_names.get(track_id)
+                if name is not None and name != "Enrolling...":
                     continue
             # ==================================================
 
