@@ -149,6 +149,7 @@ class PersonTracker:
         self.trigger_enroll = False # Flag to signal enrollment process for unknown faces
 
         self._announced_track_ids = set()  # to avoid repeating already announced IDs
+        self._announced_unknown_ids = set()  # track unannounced unknown faces
 
     @staticmethod
     def _get_device():
@@ -452,8 +453,16 @@ class PersonTracker:
                                                  daemon=True).start()
 
                 else:
-                    # NEW: Unknown face logic
+                    # Unknown face logic
                     # print(f"[FACE] ID {track_id} is Unknown")
+
+                    with self._known_names_lock:
+                        if track_id in self._active_track_ids:
+                            # Speak if we haven't already announced them as unknown or known
+                            if track_id not in self._announced_unknown_ids and track_id not in self._announced_track_ids:
+                                self._announced_unknown_ids.add(track_id)
+                                threading.Thread(target=self._speak_worker, args=("Unrecognised individual",),
+                                                 daemon=True).start()
 
                     if self.auto_enroll:  # --- CHECK MASTER SWITCH ---
                         with self._known_names_lock:
@@ -574,6 +583,10 @@ class PersonTracker:
 
                         if tid in self._announced_track_ids:
                             self._announced_track_ids.remove(tid)
+
+                    stale_unknowns = [tid for tid in self._announced_unknown_ids if tid not in current_ids]
+                    for tid in stale_unknowns:
+                        self._announced_unknown_ids.remove(tid)
                 # -----------------------------
 
                 # 2. plot persons
