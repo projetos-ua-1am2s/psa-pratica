@@ -1,13 +1,19 @@
-# tool to help you see what voices are available on your system for text-to-speech. This can be useful for selecting
-# a voice that suits your application or for debugging purposes.
+"""Utility to list available pyttsx3 voices on the current system."""
+
 import pyttsx3
 
-engine = pyttsx3.init()
-voices = engine.getProperty('voices')
 
-for index, voice in enumerate(voices):
-    print(f"Voice {index}:")
-    print(f" - Name: {voice.name}")
-    print(f" - ID: {voice.id}")
-    print(f" - Languages: {voice.languages}")
-    print("-" * 30)
+def main() -> None:
+    engine = pyttsx3.init()
+    voices = engine.getProperty('voices')
+
+    for index, voice in enumerate(voices):
+        print(f"Voice {index}:")
+        print(f" - Name: {voice.name}")
+        print(f" - ID: {voice.id}")
+        print(f" - Languages: {voice.languages}")
+        print("-" * 30)
+
+
+if __name__ == "__main__":
+    main()
