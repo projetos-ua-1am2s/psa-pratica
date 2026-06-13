@@ -1,68 +1,59 @@
 # PSA Prática
 
-A practical project developed at the **University of Aveiro** for the *Autonomous Systems* course. It explores real-time computer-vision pipelines applied to person detection and surveillance, using state-of-the-art AI models and standard hardware (webcam or depth camera).
+Practical project for the Autonomous Systems course (University of Aveiro).
 
----
+It provides a real-time vision module that detects and tracks people from a camera (or MQTT video stream), estimates movement vectors, and logs detections for later analysis.
 
-## What this project does
+## What the project does
 
-The project builds a modular surveillance system that can:
-
-- **Detect and track people** in a live video stream using [YOLOv8](https://github.com/ultralytics/ultralytics).
-- **Calculate movement vectors** (distance and direction relative to the frame centre) for each tracked person.
-- **Log detections to CSV** with timestamps, tracking IDs, confidence scores, and acceptance status.
-- **Select the best available hardware automatically** — Apple MPS (M-series), NVIDIA CUDA, or CPU.
-
-The roadmap included in each module extends the system toward full 3-D vigilance with face recognition (DeepFace / InsightFace) and depth sensing (Intel RealSense).
-
----
+- Detects people with YOLOv8 (`yolov8n.pt`)
+- Tracks detections frame-by-frame and computes a movement vector
+- Draws annotated live video output with IDs and overlays
+- Logs detections to CSV (`Timestamp, ID, Confidence, Status`)
+- Supports optional face recognition + enrollment workflow
+- Can read frames from camera or MQTT and optionally publish vectors via MQTT
 
 ## Repository structure
 
-```
+```text
 psa-pratica/
-├── README.md          ← you are here
-└── visao/             ← real-time person detection & tracking module
-    ├── README.md      ← module documentation & how-to-use guide
-    ├── main.py        ← entry point (run this)
-    ├── person_tracker.py  ← PersonTracker class
-    ├── data.yaml      ← YOLOv8 dataset/validation config
-    └── yolov8n.pt     ← YOLOv8 Nano model weights (auto-downloaded if missing)
+├── README.md
+└── visao/
+    ├── README.md
+    ├── main.py
+    ├── person_tracker.py
+    ├── enroll.py
+    ├── data.yaml
+    ├── yolov8n.pt
+    └── yolov8n-face.pt
 ```
-
----
 
 ## Quick start
 
-1. **Install dependencies**
-   ```bash
-   pip install opencv-python ultralytics torch
-   ```
+```bash
+cd visao
+pip install opencv-python ultralytics torch paho-mqtt pyttsx3
+python main.py
+```
 
-2. **Run the surveillance module**
-   ```bash
-   cd visao
-   python main.py
-   ```
+Press `q` in the video window (or `Ctrl+C` in terminal) to stop.
 
-3. **Stop the system**  
-   Press **`q`** in the video window, or **`Ctrl+C`** in the terminal.
+> If you want face recognition, also install `deepface`.
 
-> See [`visao/README.md`](visao/README.md) for full usage details, configuration options, and the `PersonTracker` API reference.
+## End-to-end flow
 
----
+```mermaid
+flowchart LR
+    A[Input stream\nCamera or MQTT] --> B[YOLO person tracking]
+    B --> C[Vector estimation\nMagnitude + Angle]
+    B --> D[Optional face pipeline\nDetect + recognize + enroll]
+    B --> E[Annotated live view]
+    B --> F[CSV logging]
+    C --> G[Optional MQTT movement output]
+```
 
-## Tech stack
+## How to use this project
 
-| Component | Library / Tool |
-|-----------|---------------|
-| Object detection | [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) |
-| Video capture & display | [OpenCV](https://opencv.org/) |
-| Deep learning backend | [PyTorch](https://pytorch.org/) (MPS / CUDA / CPU) |
-| Data logging | Python `csv` (standard library) |
-
----
-
-## Authors
-
-Developed as part of the PSA practical sessions at the University of Aveiro.
+- For normal use, run `visao/main.py`.
+- For detailed module usage, configuration, and integration examples, see [`visao/README.md`](visao/README.md).
+- For enrolling new faces into `visao/known_faces`, run `python visao/enroll.py`.
