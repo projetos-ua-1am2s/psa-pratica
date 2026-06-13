@@ -461,7 +461,7 @@ class PersonTracker:
                             # Speak if we haven't already announced them as unknown or known
                             if track_id not in self._announced_unknown_ids and track_id not in self._announced_track_ids:
                                 self._announced_unknown_ids.add(track_id)
-                                threading.Thread(target=self._speak_worker, args=("Unrecognised individual",),
+                                threading.Thread(target=self._speak_worker, args=("Unrecognized individual",),
                                                  daemon=True).start()
 
                     if self.auto_enroll:  # --- CHECK MASTER SWITCH ---
