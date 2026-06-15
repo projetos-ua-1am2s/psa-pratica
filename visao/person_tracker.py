@@ -476,16 +476,16 @@ class PersonTracker:
 
     # ====== face recognition end
 
-def _speak_worker(self, text):
-    if pyttsx3 is None:
-        return
+    def _speak_worker(self, text):
+        if pyttsx3 is None:
+            return
 
-    try:
-        engine = pyttsx3.init()
-        engine.say(text)
-        engine.runAndWait()
-    except Exception as e:
-        print(f"[TTS] Error during speech synthesis: {e}")
+        try:
+            engine = pyttsx3.init()
+            engine.say(text)
+            engine.runAndWait()
+        except Exception as e:
+            print(f"[TTS] Error during speech synthesis: {e}")
 
     def run(self):
         """

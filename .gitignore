@@ -1,5 +1,7 @@
 .idea/
 known_faces/
+People_Detection/
+Human_Dataset_v2/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
